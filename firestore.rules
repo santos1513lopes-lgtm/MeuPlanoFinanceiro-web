@@ -1,7 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
-  function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+  function approved() {
+   return request.auth != null
+    && exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid))
+    && get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.enabled == true;
+  }
+  function owner(uid) { return request.auth != null && request.auth.uid == uid && approved(); }
   function dateString(d) { return d is string && d.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
   function monthString(d) { return d is string && d.matches('^[0-9]{4}-[0-9]{2}$'); }
   function money(v) { return v is int && v >= 0 && v <= 1000000000000; }
@@ -28,6 +33,11 @@ service cloud.firestore {
     && ((d.kind in ['card','invoicePayment'] && card(uid,d.cardId) && d.status != 'planned') || (!(d.kind in ['card','invoicePayment']) && d.cardId == ''))
     && ((d.kind in ['income','expense','card','yield'] && category(uid,d.category)) || (d.kind in ['invoicePayment','transfer'] && d.category == ''));
   }
+  // Only Firebase console / trusted administration may change approvals.
+  match /authorized_users/{uid} {
+   allow get: if request.auth != null && request.auth.uid == uid;
+   allow list, create, update, delete: if false;
+  }
   match /finance_v2/{uid}/{kind}/{id} {
    allow read: if owner(uid) && kind in ['accounts','cards','categories','transactions','budgets','goals'];
    allow create, update: if owner(uid) && ((kind == 'accounts' && validAccount(request.resource.data)) || (kind == 'cards' && validCard(request.resource.data)) || (kind == 'categories' && request.resource.data.keys().hasOnly(['name']) && named(request.resource.data)) || (kind == 'transactions' && validTransaction(uid,request.resource.data)) || (kind == 'budgets' && validBudget(uid,request.resource.data)) || (kind == 'goals' && validGoal(request.resource.data)));
@@ -35,7 +45,7 @@ service cloud.firestore {
   }
   // Old data remains readable only by its owner; the new app does not use it.
   match /transactions/{id} {
-   allow read: if request.auth != null && resource.data.user_id == request.auth.uid;
+   allow read: if owner(resource.data.user_id);
    allow write: if false;
   }
  }

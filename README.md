@@ -14,7 +14,7 @@ O projeto nasceu de uma planilha pessoal para Excel/Office 2021, com VBA, formul
 
 A versão atual usa um **repositório novo**, `santos1513lopes-lgtm/MeuPlanoFinanceiro-web`, e um **projeto Firebase novo**, `meuplanofinanceiro`. Os arquivos ficam diretamente na raiz do repositório, sem uma pasta externa envolvendo o aplicativo.
 
-O modo de demonstração já foi validado pelo proprietário. O motor financeiro passou em 39 casos automatizados. A falha relatada no cadastro público não foi reproduzida com credenciais reais; o fluxo público foi retirado por decisão do proprietário. O login com usuário administrado deve ser testado após concluir as etapas abaixo.
+O modo de demonstração já foi validado pelo proprietário. Em **02/11/2026**, o proprietário confirmou o **login real e a abertura da aba Configurações**, após criar o documento de aprovação com `enabled: true`. Isso confirma a entrada com usuário administrado e a navegação nessa tela; não comprova, por si só, gravação de lançamentos ou execução das limpezas. O motor financeiro passou em 39 casos automatizados. A falha anterior de cadastro público não foi reproduzida com credenciais reais; o cadastro público foi retirado por decisão do proprietário.
 
 ## Recursos
 
@@ -156,7 +156,37 @@ A página já foi publicada pelo responsável. A demonstração não precisa de 
 
 ## Criar novos usuários pelo Firebase
 
-A liberação tem **duas etapas obrigatórias**, realizadas pelo administrador. Faça isso primeiro para a sua própria conta.
+A liberação tem **duas etapas obrigatórias**, realizadas pelo administrador: criar o login no Authentication e aprovar o UID no Firestore.
+
+**Fluxo confirmado em 02/11/2026:** depois de salvar a aprovação como booleano `true`, o proprietário entrou no aplicativo e abriu Configurações. Para outra pessoa, repita o mesmo procedimento com **o UID dela**, sem compartilhar sua própria conta.
+
+Não é necessário criar outro projeto Firebase, banco, repositório ou publicação para cada pessoa. Todos usam a mesma página; os dados financeiros ficam separados por UID.
+
+### Resumo para liberar mais uma pessoa
+
+1. **Authentication → Usuários → Adicionar usuário:** cadastre o e-mail e a senha temporária da pessoa.
+2. Copie o **UID** desse cadastro.
+3. **Firestore → Dados → authorized_users → Adicionar documento:** cole esse UID no **ID do documento**, sem gerar ID automático.
+4. Crie o campo **`enabled`**, escolha o tipo **boolean** e o valor **true / verdadeiro**. Não use o tipo string nem escreva `"true"` entre aspas.
+5. Clique em **Salvar**. Confira no painel de dados se aparece **`enabled: true`** dentro do documento cujo ID corresponde ao UID do Authentication, respeitando maiúsculas e minúsculas.
+6. Envie à pessoa o [endereço do aplicativo](https://santos1513lopes-lgtm.github.io/MeuPlanoFinanceiro-web/), sem `?demo=1`, e oriente a definir sua senha pelo e-mail de recuperação.
+7. Peça que entre. O painel deve abrir com o e-mail dela e os próprios cadastros financeiros, inicialmente vazios em uma conta nova.
+
+A coleção `authorized_users` já existe neste projeto: para mais uma pessoa, use **Adicionar documento** dentro dela. **Não substitua o documento de outro usuário.** Só use **Iniciar coleção** se estiver configurando um projeto onde essa coleção ainda não exista.
+
+```text
+authorized_users/
+├── UID_DA_PRIMEIRA_PESSOA/
+│   └── enabled: true
+└── UID_DA_SEGUNDA_PESSOA/
+    └── enabled: true
+```
+
+Esses IDs são exemplos: use os UIDs reais do Authentication no console, sem publicá-los neste README.
+
+Se aparecer **“Acesso não autorizado”**, confira a aprovação antes de redefinir a senha: UID correto, campo `enabled` do tipo boolean, valor `true`, documento salvo, projeto `meuplanofinanceiro` e banco `(default)`. Regras já publicadas e inalteradas não precisam ser republicadas a cada novo usuário.
+
+A seguir estão os detalhes de cada etapa.
 
 ### A. Criar o login no Authentication
 

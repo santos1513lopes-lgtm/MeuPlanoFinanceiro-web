@@ -294,6 +294,47 @@ A confirmação de login agora abre o fluxo de entrada explicitamente, sem depen
 Após uma atualização, aguarde a publicação do GitHub Pages e use **Ctrl+F5**. Informe ao administrador o texto exato exibido, sem compartilhar a senha. A causa da falha real relatada ainda depende dessa observação; os testes de manutenção usam respostas simuladas.
 
 
+## Ajuda e visão dos compromissos futuros
+
+A aba **Ajuda** fica no menu lateral e oferece busca sem diferenciação de acentos/maiúsculas, 14 tópicos expansíveis e atalhos para as áreas do aplicativo. Os exemplos explicam abertura de saldo, receitas/despesas, recorrências, cartões, faturas, baixa, orçamento, metas, investimentos, calculadoras, relatórios, backup e reinício. O guia também esclarece os limites das funções e a diferença entre demonstração e dados reais.
+
+### Indicadores da Visão geral
+
+Os quatro indicadores anteriores continuam disponíveis. O planejamento acrescenta, para o **mês selecionado**:
+
+| Indicador | Cálculo |
+| --- | --- |
+| A receber no mês | Receitas e rendimentos com situação Previsto e vencimento naquele mês. |
+| Contas a pagar no mês | Despesas comuns previstas, fora do cartão. |
+| Faturas em aberto no mês | Compras do cartão menos pagamentos efetivados, agrupadas pela fatura e pelo vencimento. |
+| Total a pagar no mês | Contas a pagar mais faturas em aberto. |
+| Saldo disponível projetado | Saldo disponível atual, com entradas/saídas previstas e faturas até o fim do mês; considera aportes e resgates previstos entre disponível e investimentos. |
+
+Os valores de pendências são os que continuam abertos **hoje**, relativos ao mês escolhido. Não são uma reconstrução histórica do que estava pendente em uma data passada. Para mês passado, não exibimos projeção retroativa.
+
+**Exemplo:** compra de **R$ 180 em uma parcela**, na fatura que vence em **14 de novembro**, aparece em **Faturas em aberto** e no **Total a pagar de novembro**. Antes de pagar, não reduz o saldo bancário. Depois de pagar R$ 50, o saldo aberto passa a R$ 130. A compra e o pagamento não são somados duas vezes.
+
+A data de compra não substitui o vencimento da fatura. Se o valor aparecer em outro mês, confira o ciclo do cartão e o mês da primeira fatura.
+
+### Total futuro, vencidos e detalhamento
+
+- **Todos os compromissos de hoje em diante:** soma despesas previstas e saldos de faturas com vencimento a partir de hoje, incluindo compromissos além dos 12 meses exibidos na tabela. O painel mostra a quantidade e a última data registrada.
+- **Vencidos:** aparecem separados desse total futuro. Na projeção, são incorporados no primeiro mês.
+- **Próximos vencimentos:** mostra até seis pendências do mês selecionado, identificando a pagar/a receber; Ver todos abre Compromissos.
+- **Planejamento mês a mês:** mostra 12 meses a partir do mês atual, com saldo inicial, entradas, saídas/aportes, faturas e saldo final. Ver abre os compromissos daquele mês.
+- **Transferências:** não entram em receitas/despesas de consumo nem no total a pagar. Aportes previstos reduzem o disponível projetado e resgates o aumentam.
+- **Investimentos:** saldo investido fica fora do saldo disponível. Os totais mensais de receitas/despesas abrangem os registros pendentes, enquanto a projeção de liquidez considera as contas disponíveis; por isso não se deve somar o patrimônio investido ao dinheiro para pagar contas.
+- **Cancelados e liquidados:** ficam fora das pendências correspondentes. Pagamentos parciais reduzem a fatura restante.
+- **Somente registros conhecidos:** o aplicativo não presume novos salários, compras ou contas, nem calcula juros de atraso automaticamente.
+- O saldo projetado do mês selecionado tem horizonte máximo de 120 meses a partir do mês atual; os totais de compromissos registrados não ficam limitados aos 12 meses da tabela.
+
+A implementação usa módulos de leitura/cálculo no navegador, sem mudar os documentos financeiros, login, autorização ou regras do Firestore. A atualização da página é suficiente; não é preciso republicar regras por causa destas duas melhorias.
+
+### Verificações
+
+Os 26 novos testes cobrem o exemplo de R$ 180, vencimento versus compra, pagamento parcial/integral, despesas comuns, receitas previstas/recebidas, cancelamentos, parcelas por mês, agrupamento de faturas, vencidos, transferências, projeção e busca/links da Ajuda. Junto com os testes anteriores, são **118 verificações automatizadas**. Os testes usam dados fictícios e elementos simulados; não representam inspeção visual no navegador nem acesso aos registros reais do proprietário.
+
+
 ## Primeiro uso real
 
 1. Cadastre contas e seus saldos de abertura. O saldo deve ser o valor antes dos movimentos da data inicial. Contas com tipo Investimento ficam separadas do saldo disponível; Poupança/reserva integra o disponível.

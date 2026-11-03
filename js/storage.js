@@ -1,6 +1,8 @@
-import {planReset,applyReset,resetModes} from './reset.js';
-import {collections,emptyState,today,addMonths} from './finance.js';
-import {firebaseConfig} from './firebase-config.js';
+import {planReset,applyReset,resetModes} from './reset.js?v=controls-20261103';
+import {collections,emptyState,today,addMonths} from './finance.js?v=controls-20261103';
+import {assertControl,otherControl,projectLinks,validateLink,validatePots,assertPotTransaction,freshControls} from './controls.js?v=controls-20261103';
+import {validateTx} from './finance.js?v=controls-20261103';
+import {firebaseConfig} from './firebase-config.js?v=controls-20261103';
 let sdk=null,user=null,demo=false;
 export const isDemo=()=>demo;
 export const currentUser=()=>user;
@@ -17,71 +19,85 @@ export async function assertAccess(){
 }
 export async function resetPassword(email){if(!sdk||!email)throw Error('Informe o e-mail para recuperar a senha.');await sdk.sendPasswordResetEmail(sdk.auth,email);}
 export async function logout(){if(demo){demo=false;user=null;return;}if(sdk)await sdk.signOut(sdk.auth);user=null;}
-const demoKey='meu-financeiro-demo-v2';
-export function startDemo(){demo=true;user={uid:'demo',email:'Demonstracao local'};if(!localStorage.getItem(demoKey))localStorage.setItem(demoKey,JSON.stringify(sample()));return user;}
-export async function readState(){if(demo)return JSON.parse(localStorage.getItem(demoKey)||JSON.stringify(emptyState()));if(!sdk||!user)throw Error('Entre na sua conta.');await assertAccess();const result=emptyState();const lists=await Promise.all(collections.map(k=>sdk.getDocs(sdk.collection(sdk.db,'finance_v2',user.uid,k))));collections.forEach((k,i)=>result[k]=lists[i].docs.map(d=>({...d.data(),id:d.id})));return result;}
-export async function saveRows(kind,rows){if(resetInProgress)throw Error('Aguarde o término da limpeza.');if(!collections.includes(kind)||!rows.length||rows.length>450)throw Error('Operacao fora do limite.');if(demo){const s=await readState();for(const row of rows){const i=s[kind].findIndex(x=>x.id===row.id);if(i<0)s[kind].push(row);else s[kind][i]=row;}localStorage.setItem(demoKey,JSON.stringify(s));return;}if(!sdk||!user)throw Error('Entre novamente.');await assertAccess();if(!navigator.onLine)throw Error('Sem internet. Reconecte antes de salvar; nada foi confirmado no servidor.');const b=sdk.writeBatch(sdk.db);for(const row of rows){const {id,...data}=row;b.set(sdk.doc(sdk.db,'finance_v2',user.uid,kind,id),data);}await b.commit();}
-
-let resetInProgress=false;
-function requireResetSession(snapshot){
- if(!snapshot||snapshot.uid!==user?.uid||snapshot.demo!==demo)throw Error('A sessão mudou. Prepare a limpeza novamente.');
- if(!demo&&(!sdk||!navigator.onLine))throw Error('Conecte-se à internet antes de limpar seus registros.');
+const demoKey='meu-financeiro-demo-v3';
+let selected='personal',controlOwner='',resetInProgress=false,mutationBusy=false;
+const scopeKey=uid=>'meu-financeiro-control-'+uid;
+function ensureSelection(){if(controlOwner!==user?.uid){controlOwner=user?.uid||'';let saved=null;try{saved=localStorage.getItem(scopeKey(controlOwner));}catch{};selected=['personal','business'].includes(saved)?saved:'personal';}}
+export function currentControl(){ensureSelection();return selected;}
+export function selectControl(id){if(resetInProgress||mutationBusy)throw Error('Aguarde o término da operação atual.');ensureSelection();selected=assertControl(id);try{localStorage.setItem(scopeKey(controlOwner),selected);}catch{};}
+function session(){if(!user)throw Error('Entre novamente.');ensureSelection();return {uid:user.uid,demo,control:selected};}
+function requireSession(s){if(!user||s.uid!==user.uid||s.demo!==demo||s.control!==currentControl())throw Error('A sessão ou controle mudou. Recarregue os dados antes de salvar.');}
+const root=(uid,...parts)=>['finance_v3',uid,...parts];
+const guardRef=(uid,control)=>sdk.doc(sdk.db,...root(uid,'controls',control));
+const collectionRef=(uid,control,kind)=>sdk.collection(sdk.db,...root(uid,'controls',control,kind));
+const rowRef=(uid,control,kind,id)=>sdk.doc(sdk.db,...root(uid,'controls',control,kind,id));
+const linksRef=uid=>sdk.collection(sdk.db,...root(uid,'links'));
+const parseList=snapshot=>snapshot.docs.map(d=>({...d.data(),id:d.id}));
+function demoRead(){return JSON.parse(localStorage.getItem(demoKey)||JSON.stringify({states:freshControls(),links:[]}));}
+function demoWrite(value){localStorage.setItem(demoKey,JSON.stringify(value));}
+export function startDemo(){demo=true;user={uid:'demo',email:'Demonstração local'};ensureSelection();if(!localStorage.getItem(demoKey)){const states=freshControls(),d=today(),base={kind:'checking',openingDate:d};states.personal.accounts=[{...base,id:'personal-bank',name:'Conta pessoal',openingCents:400000}];states.business.accounts=[{...base,id:'business-bank',name:'Conta PJ',openingCents:1200000}];for(const [control,names] of Object.entries({personal:['Salário','Moradia','Internet','Alimentação','Outros'],business:['Clientes','Fornecedores','Internet','Folha de pagamento','Impostos','Outros']}))states[control].categories=names.map((name,i)=>({id:control+'-cat-'+i,name}));states.business.pots=[{id:'payroll',name:'Folha de pagamento',accountId:'business-bank',reservedCents:400000,targetCents:400000},{id:'taxes',name:'Impostos',accountId:'business-bank',reservedCents:200000,targetCents:250000}];demoWrite({states,links:[]});}return user;}
+async function cloudState(uid,control){const lists=await Promise.all(collections.map(kind=>sdk.getDocsFromServer(collectionRef(uid,control,kind))));const result=emptyState();collections.forEach((kind,i)=>result[kind]=parseList(lists[i]));return result;}
+export async function readLinks(){const s=session();if(demo)return demoRead().links;await assertAccess();const result=parseList(await sdk.getDocsFromServer(linksRef(s.uid)));requireSession(s);return result;}
+export async function readState(control=currentControl()){assertControl(control);const s=session();if(demo){const value=demoRead();return projectLinks(value.states[control],value.links,control);}if(!sdk)throw Error('Conecte-se ao Firebase.');await assertAccess();const [state,links]=await Promise.all([cloudState(s.uid,control),sdk.getDocsFromServer(linksRef(s.uid)).then(parseList)]);requireSession(s);return projectLinks(state,links,control);}
+async function mutate(affected,update,resetPermit=false){
+ if(mutationBusy||(resetInProgress&&!resetPermit))throw Error('Aguarde a operação atual.');
+ const s=session();mutationBusy=true;
+ try{
+  if(s.demo){const value=demoRead();await update(value,null,s);requireSession(s);demoWrite(value);return;}
+  if(!sdk||!navigator.onLine)throw Error('Conecte-se à internet antes de salvar.');await assertAccess();requireSession(s);
+  await sdk.runTransaction(sdk.db,async tx=>{
+   const guards=await Promise.all(affected.map(control=>tx.get(guardRef(s.uid,control))));
+   const states=Object.fromEntries(await Promise.all(affected.map(async control=>[control,await cloudState(s.uid,control)])));
+   const links=parseList(await sdk.getDocsFromServer(linksRef(s.uid)));requireSession(s);
+   await update({states,links},tx,s);
+   affected.forEach((control,i)=>tx.set(guardRef(s.uid,control),{revision:(guards[i].data()?.revision||0)+1}));
+  });
+ }finally{mutationBusy=false;}
+}
+export async function saveRows(kind,rows){
+ if(!collections.includes(kind)||!rows.length||rows.length>440)throw Error('Operação fora do limite.');
+ const control=currentControl();
+ await mutate([control],async(value,tx,s)=>{
+  const state=value.states[control];
+  for(const row of rows){if(!row.id||row.id.includes('/')||row.id.startsWith('link:'))throw Error('Registro inválido.');if(kind==='transactions'){validateTx(row,state);assertPotTransaction(row,state);}const i=state[kind].findIndex(x=>x.id===row.id);if(i<0)state[kind].push(row);else state[kind][i]=row;}
+  const projected=projectLinks(state,value.links,control);validatePots(projected);
+  for(const link of value.links.filter(l=>l.status!=='cancelled')){const account=state.accounts.find(a=>a.id===(link.fromControl===control?link.fromAccount:link.toAccount));if(account&&link.status==='posted'&&link.paidDate<account.openingDate)throw Error('A abertura não pode ser posterior às movimentações entre controles.');}
+  if(tx)for(const row of rows){const {id,...data}=row;tx.set(rowRef(s.uid,control,kind,id),data);}
+ });
+}
+export async function saveLink(link){
+ await mutate(['personal','business'],async(value,tx,s)=>{
+  validateLink(link,value.states);
+  const i=value.links.findIndex(x=>x.id===link.id);if(i<0)value.links.push(link);else value.links[i]=link;
+  for(const control of ['personal','business'])validatePots(projectLinks(value.states[control],value.links,control));
+  if(tx){const {id,...data}=link;tx.set(sdk.doc(sdk.db,...root(s.uid,'links',id)),data);}
+ });
 }
 export async function prepareReset(mode){
- if(!Object.hasOwn(resetModes,mode))throw Error('Opção de limpeza inválida.');
- if(resetInProgress)throw Error('Uma limpeza já está em andamento.');
- if(demo){
-  if(!user)throw Error('Entre na demonstração antes de continuar.');
-  return {mode,uid:user.uid,demo:true,date:today(),state:await readState()};
- }
- if(!sdk||!user)throw Error('Entre na sua conta antes de continuar.');
- if(!navigator.onLine)throw Error('A limpeza precisa de conexão com o servidor.');
- await assertAccess();
- const uid=user.uid;
- const snapshots=await Promise.all(collections.map(kind=>sdk.getDocsFromServer(sdk.collection(sdk.db,'finance_v2',uid,kind))));
- if(user?.uid!==uid||demo)throw Error('A sessão mudou durante a consulta.');
- const state=emptyState();
- collections.forEach((kind,i)=>state[kind]=snapshots[i].docs.map(doc=>({...doc.data(),id:doc.id})));
- return {mode,uid,demo:false,date:today(),state};
+ if(!Object.hasOwn(resetModes,mode)||mutationBusy||resetInProgress)throw Error('Aguarde ou escolha uma limpeza válida.');
+ const s=session();await assertAccess();
+ const links=await readLinks();if(links.some(l=>l.status!=='cancelled'))throw Error('Há movimentações entre os controles. Cancele-as em Entre controles antes de limpar; isso ajusta os dois lados.');
+ const state=await readState();requireSession(s);
+ return {...s,mode,date:today(),state};
 }
 export async function executeReset(snapshot,confirmation,onProgress=()=>{}){
- requireResetSession(snapshot);
- if(!Object.hasOwn(resetModes,snapshot.mode)||confirmation!==resetModes[snapshot.mode].phrase)throw Error('Confirmação da limpeza incorreta.');
- if(resetInProgress)throw Error('Uma limpeza já está em andamento.');
- const operations=planReset(snapshot.state,snapshot.mode,snapshot.date);
+ requireSession(snapshot);
+ if(confirmation!==resetModes[snapshot.mode]?.phrase)throw Error('Confirmação incorreta.');
+ const current=await prepareReset(snapshot.mode);
+ if(JSON.stringify(current.state)!==JSON.stringify(snapshot.state))throw Error('Os dados mudaram. Prepare a limpeza novamente.');
+ const ops=planReset(snapshot.state,snapshot.mode,snapshot.date);let done=0;
+ // Each batch rechecks the session and the remaining snapshot before deleting.
+ let expected=JSON.parse(JSON.stringify(snapshot.state));
  resetInProgress=true;
- let completed=0;
- try{
-  if(demo){
-   // One localStorage write preserves theme, Auth persistence and other keys.
-   localStorage.setItem(demoKey,JSON.stringify(applyReset(snapshot.state,snapshot.mode,snapshot.date)));
-   onProgress(operations.length,operations.length);
-   return {completed:operations.length,total:operations.length};
-  }
-  for(let start=0;start<operations.length;start+=450){
-   requireResetSession(snapshot);
-   await assertAccess();
-   requireResetSession(snapshot);
-   const batch=sdk.writeBatch(sdk.db);
-   const part=operations.slice(start,start+450);
-   for(const operation of part){
-    const ref=sdk.doc(sdk.db,'finance_v2',snapshot.uid,operation.kind,operation.id);
-    if(operation.type==='delete')batch.delete(ref);
-    else {const {id,...row}=operation.row;batch.set(ref,row);}
-   }
-   await batch.commit();
-   completed+=part.length;
-   onProgress(completed,operations.length);
-  }
-  return {completed,total:operations.length};
- }catch(error){
-  const failure=new Error(completed
-   ? 'Limpeza interrompida após '+completed+' de '+operations.length+' operações confirmadas. Não há reversão automática. Atualize os dados, confira o resultado e prepare a limpeza novamente para concluir o restante. Detalhe: '+error.message
-   : 'A limpeza não foi confirmada. Atualize os dados antes de tentar novamente; se houve queda de conexão, confira o resultado no servidor. Detalhe: '+error.message);
-  failure.code=error.code;
-  failure.completed=completed;
-  throw failure;
- }finally{resetInProgress=false;}
+ try{for(let start=0;start<ops.length;start+=440){
+  requireSession(snapshot);const part=ops.slice(start,start+440);
+  let nextExpected;
+  await mutate([snapshot.control],async(value,tx,s)=>{
+   if(value.links.some(l=>l.status!=='cancelled'))throw Error('Surgiu uma movimentação entre controles. Limpeza interrompida.');
+   if(JSON.stringify(value.states[s.control])!==JSON.stringify(expected))throw Error('Os registros mudaram durante a limpeza. Atualize e confira o resultado parcial.');
+   for(const op of part){if(op.type==='delete'){value.states[s.control][op.kind]=value.states[s.control][op.kind].filter(r=>r.id!==op.id);if(tx)tx.delete(rowRef(s.uid,s.control,op.kind,op.id));}else{value.states[s.control][op.kind]=value.states[s.control][op.kind].map(r=>r.id===op.id?op.row:r);if(tx){const {id,...data}=op.row;tx.set(rowRef(s.uid,s.control,op.kind,id),data);}}}
+   nextExpected=JSON.parse(JSON.stringify(value.states[s.control]));
+  },true);expected=nextExpected;done+=part.length;onProgress(done,ops.length);
+ }}finally{resetInProgress=false;}
+ return {completed:done,total:ops.length};
 }
-
-export function sample(){const s=emptyState(),d=today(),m=d.slice(0,7),due=m+'-28';s.accounts=[{id:'bank',name:'Conta principal',kind:'checking',openingCents:350000,openingDate:m+'-01'},{id:'reserve',name:'Reserva de emergencia',kind:'saving',openingCents:500000,openingDate:m+'-01'},{id:'invest',name:'Carteira de investimentos',kind:'investment',openingCents:200000,openingDate:m+'-01'}];s.cards=[{id:'card1',name:'Meu cartao',closingDay:20,dueDay:28,limitCents:600000}];s.categories=['Salario','Moradia','Alimentacao','Transporte','Saude','Lazer','Rendimentos','Outros'].map((name,i)=>({id:'cat'+i,name}));const base={category:'cat7',accountId:'bank',toAccountId:'',cardId:'',date:d,dueDate:d,competence:m,paidDate:d,status:'posted',groupId:'',installment:1,installments:1};s.transactions=[{...base,id:'salary',kind:'income',description:'Salario do mes',category:'cat0',amountCents:450000},{...base,id:'rent',kind:'expense',description:'Moradia',category:'cat1',amountCents:150000},{...base,id:'market',kind:'expense',description:'Mercado da semana',category:'cat2',amountCents:32890},{...base,id:'future',kind:'expense',description:'Conta de energia',category:'cat1',dueDate:m+'-25',status:'planned',paidDate:'',amountCents:18500},{...base,id:'cardbuy',kind:'card',description:'Compra no cartao',accountId:'',cardId:'card1',category:'cat5',dueDate:due,paidDate:'',amountCents:27000},{...base,id:'contribution',kind:'transfer',description:'Aporte mensal',toAccountId:'invest',amountCents:50000}];s.budgets=[{id:'budget1',month:m,category:'cat2',limitCents:90000},{id:'budget2',month:m,category:'cat5',limitCents:50000}];s.goals=[{id:'goal1',name:'Reserva de emergencia',targetCents:1500000,savedCents:500000,deadline:addMonths(d,18)}];return s;}

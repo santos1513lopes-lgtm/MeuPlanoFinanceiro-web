@@ -99,12 +99,20 @@ Uma compra de R$ 180 com fatura em novembro entra uma única vez no total a paga
 3. Informe nome, conta, valor reservado agora e objetivo.
 4. Exemplos: despesas operacionais, folha, impostos, reserva de segurança.
 5. O valor já pertence ao saldo bancário: reservar não aumenta patrimônio nem cria receita ou despesa.
-6. Use **Ajustar** para reforçar ou liberar a reserva. A soma dos potes não pode superar o saldo da mesma conta no aplicativo.
+6. Use **Reservar dinheiro** para acrescentar uma quantia do saldo não reservado da mesma conta e **Liberar reserva** para devolver uma quantia ao não reservado. Informe apenas o valor desta operação. Em **Editar pote**, o campo reservado informa o total final desejado. A soma dos potes não pode superar o saldo da mesma conta no aplicativo.
 7. Ao registrar ou baixar despesa/pagamento de fatura, selecione opcionalmente o pote da mesma conta. A baixa consome reserva e dinheiro uma única vez.
 
 Exemplo: R$ 12 mil na conta PJ, R$ 4 mil para folha e R$ 2 mil para impostos = R$ 6 mil reservados e R$ 6 mil ainda não reservados. O total continua R$ 12 mil.
 
 Previsões não consomem a reserva antes do pagamento. Cadastre vencimentos em Contas a pagar; o objetivo do pote não é um segundo compromisso. Libere a reserva antes de transferir dinheiro reservado para outra conta ou controle. Não há transferência automática de potes. Se já houver histórico de pagamentos, mantenha a conta do pote e crie outro no destino. Contas do tipo Investimento não recebem potes. Saldo não reservado não equivale a lucro.
+
+## Digitação de valores em reais
+
+Os campos monetários formatam automaticamente separadores brasileiros e duas casas decimais. Digitando apenas números: **1 → 0,01**, **2000 → 20,00**, **123456 → 1.234,56**. Selecione o conteúdo inteiro antes de substituir um valor existente. Saldo inicial permite sinal negativo; despesas e reservas exigem valores positivos. Taxas de juros, quantidades, datas e expressões da calculadora mantêm seus formatos próprios.
+
+Ao colar no campo vazio ou totalmente selecionado, o valor inteiro é interpretado em reais: **20 → 20,00**. Também aceita colar **20,00** ou **1.234,56**. A máscara não altera valores já gravados.
+
+Exemplo de reserva: o pote possui R$ 50,00 e você quer guardar mais R$ 20,00. Clique **Reservar dinheiro**, digite **2000** e salve. O pote passa a R$ 70,00; o saldo não reservado da mesma conta diminui R$ 20,00; o saldo bancário permanece igual. Não crie outra receita para isso.
 
 ## Pró-labore, distribuição de lucros, aporte e reembolso
 

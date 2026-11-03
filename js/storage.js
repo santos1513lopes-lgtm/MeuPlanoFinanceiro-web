@@ -1,8 +1,8 @@
-import {planReset,applyReset,resetModes} from './reset.js?v=controls-20261103';
-import {collections,emptyState,today,addMonths} from './finance.js?v=controls-20261103';
-import {assertControl,otherControl,projectLinks,validateLink,validatePots,assertPotTransaction,freshControls} from './controls.js?v=controls-20261103';
-import {validateTx} from './finance.js?v=controls-20261103';
-import {firebaseConfig} from './firebase-config.js?v=controls-20261103';
+import {planReset,applyReset,resetModes} from './reset.js?v=money-pots-20261103';
+import {collections,emptyState,today,addMonths} from './finance.js?v=money-pots-20261103';
+import {assertControl,otherControl,projectLinks,validateLink,validatePots,assertPotTransaction,freshControls} from './controls.js?v=money-pots-20261103';
+import {validateTx} from './finance.js?v=money-pots-20261103';
+import {firebaseConfig} from './firebase-config.js?v=money-pots-20261103';
 let sdk=null,user=null,demo=false;
 export const isDemo=()=>demo;
 export const currentUser=()=>user;
@@ -71,6 +71,18 @@ export async function saveLink(link){
   const i=value.links.findIndex(x=>x.id===link.id);if(i<0)value.links.push(link);else value.links[i]=link;
   for(const control of ['personal','business'])validatePots(projectLinks(value.states[control],value.links,control));
   if(tx){const {id,...data}=link;tx.set(sdk.doc(sdk.db,...root(s.uid,'links',id)),data);}
+ });
+}
+export async function changeReserve(potId,amountCents,mode){
+ if(!['reserve','release'].includes(mode)||!Number.isSafeInteger(amountCents)||amountCents<=0||amountCents>1e12)throw Error('Informe uma quantia positiva para reservar ou liberar.');
+ const control=currentControl();
+ await mutate([control],async(value,tx,s)=>{
+  const state=value.states[control],pot=state.pots.find(p=>p.id===potId);
+  if(!pot)throw Error('Este pote não existe mais. Atualize os dados.');
+  // Apply a delta to the latest server value, including on transaction retries.
+  pot.reservedCents+=mode==='reserve'?amountCents:-amountCents;
+  validatePots(projectLinks(state,value.links,control));
+  if(tx){const {id,...data}=pot;tx.set(rowRef(s.uid,control,'pots',id),data);}
  });
 }
 export async function prepareReset(mode){

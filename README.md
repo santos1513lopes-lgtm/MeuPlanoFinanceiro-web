@@ -323,6 +323,21 @@ Após uma atualização, aguarde a publicação do GitHub Pages e use **Ctrl+F5*
 
 
 
+## Layout e navegação
+
+- O cabeçalho permanece no topo durante a rolagem, com Atualizar, Backup e Novo lançamento.
+- A barra lateral tem logo e rodapé separados da lista de páginas. Somente a região central rola quando a altura da tela não comporta todas as opções.
+- No computador, o botão ao lado do título recolhe o menu para uma faixa de ícones ou o expande novamente. Os ícones possuem descrição e identificação acessível.
+- A preferência de recolhimento fica neste navegador, na chave local `meu-financeiro-sidebar-collapsed`. Isso não modifica o armazenamento do login ou os registros financeiros.
+- O e-mail e o botão **Sair** ficam no rodapé do menu expandido. No modo recolhido, o e-mail aparece no cabeçalho e a saída continua na barra de ícones.
+- No celular, o menu abre sobre o conteúdo e fecha pelo botão X, por Esc, ao tocar no fundo ou ao escolher uma página. Enquanto aberto, o foco do teclado fica no menu e a página ao fundo não recebe interação.
+- A mudança de tamanho de tela limpa o estado do menu móvel, sem perder a preferência do computador.
+- A saída usa o fluxo de logout já existente. Login, autorização, cálculos e regras do Firestore não foram substituídos nesta alteração.
+- Animações respeitam a preferência de movimento reduzido do sistema.
+
+Foram executados 19 testes automatizados do controlador de navegação, além dos 12 de login, 39 financeiros e 22 de reinício (92 ao todo). Eles verificam comportamento com elementos simulados; não substituem inspeção visual no navegador em diferentes resoluções, que ainda precisa ser conferida.
+
+
 ## Configurações: limpar movimentações ou começar do zero
 
 A aba **Configurações** oferece duas operações para o usuário conectado. E-mail, senha, sessão de login, cadastro do Authentication e documento `authorized_users/{uid}` são preservados. Os dados de outros usuários não são consultados nem removidos por essa função.

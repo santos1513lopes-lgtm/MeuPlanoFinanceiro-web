@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/finance.test.js && node tests/reset.test.js && node tests/login.test.js"
+    "test": "node tests/finance.test.js && node tests/reset.test.js && node tests/login.test.js && node tests/layout.test.js"
   }
 }

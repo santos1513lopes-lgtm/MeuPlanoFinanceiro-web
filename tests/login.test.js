@@ -14,7 +14,7 @@ export async function runLoginTests(){
   nodes['app-shell'].hidden=true;nodes.email.value='test@example.invalid';nodes.password.value='not-a-real-password';
   const messages=[];let text='';Object.defineProperty(nodes['auth-message'],'textContent',{get:()=>text,set:value=>{text=value;messages.push(value);}});
   let authCalls=0,signOuts=0,reloads=0;
-  const context={$:id=>nodes[id],setTimeout,clearTimeout,F:{emptyState:()=>({})},reload:async()=>{reloads++;},Store:{
+  const context={$:id=>nodes[id],setTimeout,clearTimeout,layout:{syncAccount:()=>{},closeMenu:()=>{}},F:{emptyState:()=>({})},reload:async()=>{reloads++;},Store:{
    login:async()=>{authCalls++;if(signInError)throw signInError;return {uid:'user-A',email:'test@example.invalid'};},
    assertAccess:async()=>{if(neverReply)return new Promise(()=>{});if(!approved)throw Object.assign(Error('denied'),{code:'app/access-not-approved'});},
    logout:async()=>signOuts++,isDemo:()=>false
@@ -37,7 +37,7 @@ export async function runLoginTests(){
   const login=storage.slice(storage.indexOf('export async function login('),storage.indexOf('export async function assertAccess(')).replace(/^export /gm,'');
   const expected={uid:'user-A'};const context={fakeSDK:{auth:{},signInWithEmailAndPassword:async()=>({user:expected})}};vm.createContext(context);vm.runInContext('let sdk=fakeSDK,user=null,demo=true;\n'+login,context);assert.equal(await context.login('test@example.invalid','not-a-real-password'),expected);assert.equal(vm.runInContext('user.uid',context),'user-A');
  });
- await test('Carregamento inicial tem falha visivel',()=>{assert.ok(html.includes('Falha ao carregar o código do aplicativo'));assert.ok(html.includes('login-feedback-20261102'));});
+ await test('Carregamento inicial tem falha visivel',()=>{assert.ok(html.includes('Falha ao carregar o código do aplicativo'));assert.ok(html.includes("import('./js/app.js"));});
  await test('Erro de conexao e erro de dados sao distintos',()=>{const s=screen();assert.match(s.context.errorText({code:'app/connection-timeout'}),/conexão inicial/);assert.match(s.context.errorText({code:'app/data-timeout'}),/dados do Firestore/);});
  return passed;
 }

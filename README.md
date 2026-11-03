@@ -276,15 +276,57 @@ Não coloque senhas, tokens ou credenciais administrativas em capturas ou arquiv
 - A edição e o cancelamento afetam uma única ocorrência. Não há edição/exclusão em lote de toda uma série.
 - Operações de séries usam writeBatch e são atômicas. Cada série é limitada a 120 ocorrências. Não há geração automática de novas recorrências com o site fechado.
 - As leituras carregam o histórico do usuário ao entrar/atualizar. Não há sincronização em tempo real, trabalho offline com fila, paginação de históricos grandes ou resolução de conflitos de edição simultânea. Para uso pessoal inicial; acompanhe as cotas do Firebase.
-- Sem importação OFX/CSV, integração bancária, anexos, notificações ou exclusão definitiva pelo aplicativo.
+- Sem importação OFX/CSV, integração bancária, anexos ou notificações. Exclusão definitiva está disponível somente pelos fluxos de limpeza em Configurações.
 - As calculadoras usam taxas hipotéticas constantes. Investimentos usam taxa anual efetiva convertida para mensal ou taxa mensal informada, com aportes no início/fim. Não incluem impostos, inflação nem tarifas. Financiamento usa tabela Price e não calcula CET. Resultados nunca geram lançamentos automaticamente.
 - Calculadora comum usa uma gramática aritmética, sem eval. Porcentagem é número dividido por 100: 200 * 10% = 20.
 
 
 
+## Configurações: limpar movimentações ou começar do zero
+
+A aba **Configurações** oferece duas operações para o usuário conectado. E-mail, senha, sessão de login, cadastro do Authentication e documento `authorized_users/{uid}` são preservados. Os dados de outros usuários não são consultados nem removidos por essa função.
+
+| Opção | O que muda | O que permanece |
+| --- | --- | --- |
+| **Limpar movimentações** | Apaga todos os lançamentos, inclusive previsões, parcelas, compras e pagamentos de fatura; zera os saldos de abertura e usa a data de hoje; zera o acumulado das metas. | Contas, cartões, categorias, limites de orçamento e objetivos cadastrados, além do acesso do usuário. |
+| **Começar do zero** | Apaga todas as seis coleções financeiras do próprio UID: lançamentos, contas, cartões, categorias, orçamento e metas. | Login, senha e autorização de acesso. O usuário cadastra as contas e saldos iniciais novamente. |
+
+### Antes da primeira utilização: publicar regras atualizadas
+
+Esta função precisa da versão atual de [firestore.rules](firestore.rules). No console Firebase, abra **Firestore → Regras**, substitua pelo arquivo inteiro e publique. Um commit no GitHub não publica regras no Firebase.
+
+A permissão nova autoriza exclusões apenas nas seis coleções financeiras do próprio UID aprovado. A coleção `authorized_users` continua sem permissão de escrita/exclusão pelo aplicativo. As contas do Authentication não são manipuladas pela limpeza.
+
+### Como usar
+
+1. Entre normalmente com o usuário autorizado.
+2. Abra **Configurações**, no menu do aplicativo.
+3. Feche outras abas do aplicativo que possam estar alterando dados.
+4. Escolha **Limpar movimentações** ou **Começar do zero**.
+5. O aplicativo consulta o servidor e mostra as quantidades de registros. Na demonstração, consulta somente os dados fictícios locais.
+6. Use **Baixar backup antes de continuar** e confira se o arquivo foi salvo. O backup é JSON; não há restauração automática nesta versão.
+7. Digite exatamente **LIMPAR** ou **ZERAR**, conforme a operação escolhida, e marque a confirmação de exclusão definitiva.
+8. Clique em **Confirmar limpeza** e aguarde.
+9. Na limpeza de movimentações, edite os saldos iniciais das contas para recomeçar. No reinício completo, cadastre novamente suas contas e categorias.
+
+Cancelar ou fechar a confirmação antes de executar não apaga registros. Não existe desfazer após a confirmação.
+
+### Conexão, lotes e interrupções
+
+A limpeza real exige internet e leitura atualizada do servidor. Operações grandes são divididas em lotes de até 450 alterações; **cada lote é atômico, mas a limpeza completa pode ter vários lotes**. Se a conexão ou a permissão falhar entre lotes, parte dos registros pode já ter sido removida. A mensagem informa as operações confirmadas; atualize os dados, confira o resultado e prepare uma nova limpeza para concluir o restante. Uma perda de conexão durante a confirmação exige conferir o servidor antes de repetir.
+
+Não grave simultaneamente em outra aba/dispositivo durante a operação. Registros adicionados após a preparação não pertencem à lista confirmada e podem permanecer; o aplicativo confere o resultado e avisa se encontrar dados novos. O backup representa a consulta feita antes da confirmação.
+
+Na demonstração, a operação altera apenas a chave de dados fictícios deste aplicativo. Não usa `localStorage.clear()` e não apaga outras preferências ou sessões do navegador.
+
+### Verificação desta função
+
+Há testes do plano de exclusão, preservação de cadastros/acesso, usuário sem autorização, sessão alterada, demonstração, lotes grandes, falha parcial e repetição para concluir. São testes com dados/respostas simulados, não exclusões de dados reais nem validação de regras publicadas no Firebase.
+
+
 ## Desenvolvimento e validação
 
-Para os 39 casos financeiros, com Node.js instalado:
+Para os casos financeiros e os testes de reinício, com Node.js instalado:
 
 ```bash
 npm test

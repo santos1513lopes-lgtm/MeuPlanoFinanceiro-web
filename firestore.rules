@@ -41,7 +41,7 @@ service cloud.firestore {
   match /finance_v2/{uid}/{kind}/{id} {
    allow read: if owner(uid) && kind in ['accounts','cards','categories','transactions','budgets','goals'];
    allow create, update: if owner(uid) && ((kind == 'accounts' && validAccount(request.resource.data)) || (kind == 'cards' && validCard(request.resource.data)) || (kind == 'categories' && request.resource.data.keys().hasOnly(['name']) && named(request.resource.data)) || (kind == 'transactions' && validTransaction(uid,request.resource.data)) || (kind == 'budgets' && validBudget(uid,request.resource.data)) || (kind == 'goals' && validGoal(request.resource.data)));
-   allow delete: if false;
+   allow delete: if owner(uid) && kind in ['accounts','cards','categories','transactions','budgets','goals'];
   }
   // Old data remains readable only by its owner; the new app does not use it.
   match /transactions/{id} {

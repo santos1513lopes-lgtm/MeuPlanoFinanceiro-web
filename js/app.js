@@ -1,8 +1,9 @@
+import {resetModes,planReset} from './reset.js';
 import * as F from './finance.js';
 import * as Store from './storage.js';
 const $=id=>document.getElementById(id), e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=F.emptyState(),ready=false,view='dashboard',editorKind='',editing=null,period=F.today().slice(0,7),query='',typeFilter='all',statusFilter='all';
-const views={dashboard:['◫','Visão geral','Seu dinheiro, com clareza.'],transactions:['⇄','Lançamentos','Receitas, despesas e movimentações em um só lugar.'],future:['◷','Compromissos','Organize o que você ainda tem a pagar e receber.'],accounts:['▤','Contas','Seus saldos de abertura e o dinheiro em cada conta.'],cards:['▱','Cartões e faturas','Compras, parcelas e pagamentos sem duplicar despesas.'],budgets:['◉','Orçamento','Dê um destino ao seu dinheiro antes de gastar.'],goals:['⚑','Metas','Um plano para cada conquista.'],investments:['↗','Investimentos','Acompanhe suas reservas, aportes e rendimentos.'],calculators:['∑','Calculadoras','Experimente possibilidades antes de decidir.'],categories:['≡','Categorias','Organize seus lançamentos do seu jeito.'],reports:['▧','Relatórios','Consulte, imprima e exporte seus registros.']};
+const views={dashboard:['◫','Visão geral','Seu dinheiro, com clareza.'],transactions:['⇄','Lançamentos','Receitas, despesas e movimentações em um só lugar.'],future:['◷','Compromissos','Organize o que você ainda tem a pagar e receber.'],accounts:['▤','Contas','Seus saldos de abertura e o dinheiro em cada conta.'],cards:['▱','Cartões e faturas','Compras, parcelas e pagamentos sem duplicar despesas.'],budgets:['◉','Orçamento','Dê um destino ao seu dinheiro antes de gastar.'],goals:['⚑','Metas','Um plano para cada conquista.'],investments:['↗','Investimentos','Acompanhe suas reservas, aportes e rendimentos.'],calculators:['∑','Calculadoras','Experimente possibilidades antes de decidir.'],categories:['≡','Categorias','Organize seus lançamentos do seu jeito.'],reports:['▧','Relatórios','Consulte, imprima e exporte seus registros.'],settings:['⚙','Configurações','Reinicie seu controle financeiro com segurança.']};
 const accountKinds={checking:'Conta corrente',cash:'Carteira',saving:'Poupança / reserva',investment:'Investimento'};
 const txKinds={income:'Receita',expense:'Despesa',card:'Compra no cartão',invoicePayment:'Pagamento de fatura',transfer:'Transferência',yield:'Rendimento'};
 const name=(k,id)=>state[k].find(x=>x.id===id)?.name||'—';
@@ -37,7 +38,7 @@ function reportsPage(){const rows=F.forecast(state);return heading(action('↓ C
 const input=(name,label,value='',type='text',extra='',note='')=>'<label>'+label+'<input name="'+name+'" type="'+type+'" value="'+e(value)+'" '+extra+'>'+ (note?'<small>'+note+'</small>':'')+'</label>';
 const select=(field,label,options,value='',note='')=>'<label>'+label+'<select name="'+field+'">'+options.map(([k,v])=>'<option value="'+e(k)+'" '+(k===value?'selected':'')+'>'+e(v)+'</option>').join('')+'</select>'+(note?'<small>'+note+'</small>':'')+'</label>';
 function calculatorsPage(){return heading()+'<div class="grid-two"><section class="panel calculator-panel"><h3>Seu investimento no tempo</h3><p class="muted">Juros compostos com taxa fixa hipotética.</p><form data-calc="investment">'+input('initial','Valor inicial (R$)','1000,00','text','required inputmode="decimal"')+input('contribution','Aporte mensal (R$)','200,00','text','required inputmode="decimal"')+input('rate','Taxa de juros (%)','8','number','required step="any" min="-99.99" max="1000"')+select('period','Período da taxa',[['annual','Ao ano · efetiva'],['monthly','Ao mês']],'annual')+input('months','Prazo em meses','24','number','required min="1" max="600"')+select('timing','Momento do aporte',[['end','Fim do mês'],['beginning','Início do mês']])+input('target','Meta opcional (R$)','','text','inputmode="decimal"')+'<button class="primary" type="submit">Simular investimento →</button></form><div id="investment-result" class="calc-result muted">Seu resultado aparecerá aqui.</div><p class="panel-note">Valores nominais, sem impostos, tarifas ou inflação. Taxa constante não representa garantia de rentabilidade. A simulação não movimenta suas contas.</p></section><div><section class="panel calculator-panel"><h3>À vista ou financiado?</h3><p class="muted">Parcelas fixas pela tabela Price, sem tarifas adicionais.</p><form data-calc="purchase">'+input('cash','Preço à vista (R$)','1200,00','text','required inputmode="decimal"')+input('down','Entrada (R$)','0,00','text','required inputmode="decimal"')+input('count','Número de parcelas','12','number','required min="1" max="120"')+input('rate','Juros ao mês (%)','2','number','required min="0" max="100" step="any"')+'<button class="primary" type="submit">Comparar custos →</button></form><div id="purchase-result" class="calc-result muted">Compare o total e o custo dos juros.</div><p class="panel-note">Arredondamento pode exigir ajuste de centavos na última parcela do contrato real. Não inclui IOF, seguros ou CET.</p></section><section class="panel calculator-panel section-gap"><h3>Calculadora do dia a dia</h3><form data-calc="basic">'+input('expression','Conta matemática','(125 + 75) * 10%','text','required')+'<button class="primary" type="submit">Calcular =</button></form><div id="basic-result" class="calc-result muted">Use +, −, *, /, parênteses e %. Ex.: 200 * 10% = 20.</div></section></div></div>';}
-function render(){drawNav();if(!ready){$('content').innerHTML='<div class="loading">Os dados ainda não foram carregados. Use Atualizar para tentar novamente.</div>';return;}const map={dashboard,transactions:transactionsPage,future:transactionsPage,accounts:()=>accountsPage(),cards:cardsPage,budgets:budgetsPage,goals:goalsPage,investments:()=>accountsPage(true),calculators:calculatorsPage,categories:categoriesPage,reports:reportsPage};$('content').innerHTML=map[view]();}
+function render(){drawNav();if(!ready){$('content').innerHTML='<div class="loading">Os dados ainda não foram carregados. Use Atualizar para tentar novamente.</div>';return;}const map={settings:settingsPage,dashboard,transactions:transactionsPage,future:transactionsPage,accounts:()=>accountsPage(),cards:cardsPage,budgets:budgetsPage,goals:goalsPage,investments:()=>accountsPage(true),calculators:calculatorsPage,categories:categoriesPage,reports:reportsPage};$('content').innerHTML=map[view]();}
 function go(target){if(!views[target])return;view=target;query='';typeFilter='all';statusFilter='all';$('sidebar')?.classList.remove('open');document.querySelector('.sidebar').classList.remove('open');render();window.scrollTo({top:0,behavior:'smooth'});}
 function options(k){return [['','Selecione…'],...state[k].map(x=>[x.id,x.name])];}
 function openEditor(kind,id='',preset={}){if(!ready){notice('Carregue os dados antes de editar.');return;}editorKind=kind;editing=id;const found=state[kind]?.find(x=>x.id===id)||{};const t={...found,...preset};$('editor-title').textContent=(id?'Editar ':'Novo ')+({accounts:'cadastro de conta',cards:'cartão',categories:'categoria',transactions:'lançamento',budgets:'limite de orçamento',goals:'objetivo'}[kind]);let fields='';
@@ -72,6 +73,8 @@ async function saveEditor(ev){ev.preventDefault();const form=$('editor-form');if
 function download(name,text,type='application/json'){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function csv(){const cell=x=>'"'+String(x??'').replace(/^[=+@-]/,"'"+'$&').replace(/"/g,'""')+'"';const rows=[['Vencimento','Baixa','Descrição','Tipo','Categoria','Conta','Cartão','Valor (R$)','Situação'],...filtered().map(t=>[t.dueDate,t.paidDate,t.description,txKinds[t.kind],name('categories',t.category),name('accounts',t.accountId),name('cards',t.cardId),(t.amountCents/100).toFixed(2).replace('.',','),t.status])];download('extrato-'+period+'.csv','\ufeff'+rows.map(r=>r.map(cell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}
 async function onAction(act,id){try{
+ if(act==='reset-movements')return startReset('movements');
+ if(act==='reset-all')return startReset('all');
  if(act.startsWith('goto-'))return go(act.slice(5));if(act.startsWith('new-')&&!['new-transfer','new-yield'].includes(act))return openEditor(act.slice(4));if(act.startsWith('edit-'))return openEditor(act.slice(5),id);
  if(act==='new-transfer')return openEditor('transactions','',{kind:'transfer'});
  if(act==='new-yield')return openEditor('transactions','',{kind:'yield',status:'posted'});
@@ -113,3 +116,63 @@ $('content').addEventListener('submit',ev=>{if(ev.target.dataset.calc){ev.preven
 Store.connect(user=>{if(user)enter(user);else if(!Store.isDemo()){$('app-shell').hidden=true;$('login-screen').hidden=false;}}).then(()=>$('auth-message').textContent='Conexão pronta. Entre com o cadastro criado pelo administrador.').catch(err=>$('auth-message').textContent='Não foi possível conectar ao Firebase. Confira a internet; a demonstração continua disponível.');
 
 if(new URLSearchParams(location.search).get('demo')==='1')enter(Store.startDemo());
+
+
+let resetBusy=false,resetPending=null;
+function settingsPage(){
+ return heading()+
+ '<section class="panel settings-account"><h3>Sua conta continua a mesma</h3><p>'+e(Store.currentUser()?.email||'Demonstração local')+'</p><p class="muted">As opções abaixo alteram somente seus registros financeiros. E-mail, senha, login e autorização de acesso são preservados. Outros usuários não são afetados.</p></section>'+
+ '<div class="grid-two section-gap settings-options">'+
+ '<section class="panel"><span class="eyebrow teal">PRESERVAR OS CADASTROS</span><h2>Limpar movimentações</h2><p>Apaga receitas, despesas, compras no cartão, pagamentos, transferências e lançamentos futuros.</p><ul><li>Zera os saldos de abertura das contas e usa a data de hoje.</li><li>Zera o valor acumulado das metas.</li><li>Mantém contas, cartões, categorias, limites de orçamento e objetivos cadastrados.</li></ul><button class="secondary reset-danger" data-action="reset-movements">Limpar movimentações</button></section>'+
+ '<section class="panel"><span class="eyebrow negative">REINICIAR TODO O CONTROLE</span><h2>Começar do zero</h2><p>Apaga seus registros financeiros completos: lançamentos, contas, cartões, categorias, orçamento e metas.</p><ul><li>O controle fica vazio, como no primeiro acesso.</li><li>Você cadastra novamente suas contas e saldos iniciais.</li><li>Seu usuário e sua autorização continuam ativos.</li></ul><button class="primary reset-danger-solid" data-action="reset-all">Começar do zero</button></section></div>'+
+ '<p class="panel-note">Você poderá baixar um backup e revisar a quantidade de registros antes de confirmar. A exclusão não possui desfazer. Feche outras abas do aplicativo antes de iniciar.</p>'+
+ (Store.isDemo()?'<p class="panel-note">Na demonstração, somente os dados fictícios deste navegador são alterados.</p>':'');
+}
+function resetDialog(){
+ let dialog=$('reset-dialog');if(dialog)return dialog;
+ dialog=document.createElement('dialog');dialog.id='reset-dialog';dialog.className='reset-dialog';document.body.appendChild(dialog);
+ dialog.addEventListener('cancel',event=>{if(resetBusy)event.preventDefault();});
+ dialog.addEventListener('close',()=>{if(!resetBusy)resetPending=null;});
+ return dialog;
+}
+async function startReset(mode){
+ if(resetBusy||!ready)return;
+ resetBusy=true;
+ $('content').querySelectorAll('[data-action^="reset-"]').forEach(button=>button.disabled=true);
+ notice('Consultando seus registros para preparar a confirmação…');
+ try{
+  resetPending=await Store.prepareReset(mode);
+  const operations=planReset(resetPending.state,mode,resetPending.date);
+  const snapshot=resetPending,meta=resetModes[mode],dialog=resetDialog();
+  const counts=Object.entries(snapshot.state).map(([kind,rows])=>({kind,count:rows.length}));
+  const labels={transactions:'Lançamentos',accounts:'Contas',cards:'Cartões',categories:'Categorias',budgets:'Orçamentos',goals:'Metas'};
+  dialog.innerHTML='<form id="reset-form"><header><div><span class="eyebrow negative">CONFIRME ANTES DE APAGAR</span><h2>'+meta.title+'</h2></div><button type="button" id="reset-close" class="icon-button" aria-label="Fechar confirmação">×</button></header><div class="reset-body"><p>Conta: <strong>'+e(Store.currentUser()?.email||'Demonstração local')+'</strong></p><p>'+(mode==='all'?'Todos os registros financeiros abaixo serão apagados.':'Os lançamentos serão apagados. Contas e metas terão seus valores iniciais/acumulados zerados; os demais cadastros serão mantidos.')+'</p><div class="reset-counts">'+counts.map(item=>'<span>'+labels[item.kind]+': <strong>'+item.count+'</strong></span>').join('')+'</div><p class="form-info">Login, senha e autorização permanecem. Esta ação não tem desfazer. O backup é uma exportação JSON; a versão atual não possui restauração automática.</p><button type="button" class="secondary" id="reset-backup">↓ Baixar backup antes de continuar</button><label>Digite <strong>'+meta.phrase+'</strong> para confirmar<input id="reset-phrase" autocomplete="off" spellcheck="false" required></label><label class="reset-check"><input id="reset-ack" type="checkbox" required><span>Entendo que os registros selecionados serão apagados definitivamente.</span></label><p id="reset-progress" role="status"></p><p id="reset-error" class="negative" role="alert"></p></div><footer><button type="button" class="secondary" id="reset-cancel">Cancelar</button><button type="submit" class="primary reset-danger-solid" id="reset-confirm" disabled>Confirmar limpeza</button></footer></form>';
+  const update=()=>{$('reset-confirm').disabled=$('reset-phrase').value!==meta.phrase||!$('reset-ack').checked||resetBusy;};
+  const close=()=>{if(!resetBusy)dialog.close();};
+  $('reset-close').onclick=$('reset-cancel').onclick=close;
+  $('reset-phrase').oninput=$('reset-ack').onchange=update;
+  $('reset-backup').onclick=()=>{download('backup-antes-da-limpeza-'+F.today()+'.json',JSON.stringify({version:2,exportedAt:new Date().toISOString(),mode:snapshot.demo?'demo':'firebase',data:snapshot.state},null,2));$('reset-progress').textContent='Download solicitado. Confira se o arquivo foi salvo antes de continuar.';};
+  $('reset-form').onsubmit=async event=>{
+   event.preventDefault();
+   if(resetBusy||$('reset-phrase').value!==meta.phrase||!$('reset-ack').checked)return;
+   resetBusy=true;
+   ['reset-confirm','reset-cancel','reset-close','reset-backup','reset-phrase','reset-ack'].forEach(id=>$(id).disabled=true);
+   $('reset-error').textContent='';$('reset-progress').textContent='Executando limpeza. Aguarde sem fechar esta aba…';
+   try{
+    await Store.executeReset(snapshot,$('reset-phrase').value,(done,total)=>{$('reset-progress').textContent=done+' de '+total+' operações confirmadas.';});
+    resetBusy=false;dialog.close();resetPending=null;
+    await reload();
+    if(ready){
+     const remains=mode==='all'?Object.values(state).some(rows=>rows.length):state.transactions.length>0;
+     notice(remains?'A limpeza foi concluída para os registros confirmados, mas há registros novos ou concorrentes. Confira os dados antes de repetir.':mode==='all'?'Controle reiniciado. Cadastre suas contas e saldos iniciais. Seu acesso foi preservado.':'Movimentações removidas e saldos zerados. Atualize os saldos de abertura das contas para recomeçar.',!remains);
+    }
+   }catch(error){
+    const message=error.code==='permission-denied'?'O Firebase não autorizou a limpeza. Peça ao administrador para publicar as regras atualizadas. '+error.message:error.message;
+    resetBusy=false;dialog.close();resetPending=null;
+    await reload();notice(message);
+   }finally{resetBusy=false;}
+  };
+  notice('');dialog.showModal();resetBusy=false;update();
+ }catch(error){notice(errorText(error));}
+ finally{resetBusy=false;$('content').querySelectorAll('[data-action^="reset-"]').forEach(button=>button.disabled=false);}
+}

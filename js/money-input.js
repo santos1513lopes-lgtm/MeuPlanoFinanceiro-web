@@ -1,4 +1,4 @@
-import {cents} from './finance.js?v=money-pots-20261103';
+import {cents} from './finance.js?v=partial-20261103';
 // Currency entry follows the cent-based convention: 1 -> 0,01; 12345 -> 123,45.
 export function moneyDigits(value){
  const raw=String(value??''),negative=raw.trim().startsWith('-');

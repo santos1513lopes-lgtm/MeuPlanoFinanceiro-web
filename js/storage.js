@@ -1,8 +1,9 @@
-import {planReset,applyReset,resetModes} from './reset.js?v=money-pots-20261103';
-import {collections,emptyState,today,addMonths} from './finance.js?v=money-pots-20261103';
-import {assertControl,otherControl,projectLinks,validateLink,validatePots,assertPotTransaction,freshControls} from './controls.js?v=money-pots-20261103';
-import {validateTx} from './finance.js?v=money-pots-20261103';
-import {firebaseConfig} from './firebase-config.js?v=money-pots-20261103';
+import {buildSettlements,buildReversal} from './settlements.js?v=partial-20261103';
+import {planReset,applyReset,resetModes} from './reset.js?v=partial-20261103';
+import {collections,emptyState,today,addMonths} from './finance.js?v=partial-20261103';
+import {assertControl,otherControl,projectLinks,validateLink,validatePots,assertPotTransaction,freshControls} from './controls.js?v=partial-20261103';
+import {validateTx} from './finance.js?v=partial-20261103';
+import {firebaseConfig} from './firebase-config.js?v=partial-20261103';
 let sdk=null,user=null,demo=false;
 export const isDemo=()=>demo;
 export const currentUser=()=>user;
@@ -33,7 +34,7 @@ const collectionRef=(uid,control,kind)=>sdk.collection(sdk.db,...root(uid,'contr
 const rowRef=(uid,control,kind,id)=>sdk.doc(sdk.db,...root(uid,'controls',control,kind,id));
 const linksRef=uid=>sdk.collection(sdk.db,...root(uid,'links'));
 const parseList=snapshot=>snapshot.docs.map(d=>({...d.data(),id:d.id}));
-function demoRead(){return JSON.parse(localStorage.getItem(demoKey)||JSON.stringify({states:freshControls(),links:[]}));}
+function demoRead(){const value=JSON.parse(localStorage.getItem(demoKey)||JSON.stringify({states:freshControls(),links:[]}));for(const control of ['personal','business'])value.states[control]={...emptyState(),...value.states[control]};return value;}
 function demoWrite(value){localStorage.setItem(demoKey,JSON.stringify(value));}
 export function startDemo(){demo=true;user={uid:'demo',email:'Demonstração local'};ensureSelection();if(!localStorage.getItem(demoKey)){const states=freshControls(),d=today(),base={kind:'checking',openingDate:d};states.personal.accounts=[{...base,id:'personal-bank',name:'Conta pessoal',openingCents:400000}];states.business.accounts=[{...base,id:'business-bank',name:'Conta PJ',openingCents:1200000}];for(const [control,names] of Object.entries({personal:['Salário','Moradia','Internet','Alimentação','Outros'],business:['Clientes','Fornecedores','Internet','Folha de pagamento','Impostos','Outros']}))states[control].categories=names.map((name,i)=>({id:control+'-cat-'+i,name}));states.business.pots=[{id:'payroll',name:'Folha de pagamento',accountId:'business-bank',reservedCents:400000,targetCents:400000},{id:'taxes',name:'Impostos',accountId:'business-bank',reservedCents:200000,targetCents:250000}];demoWrite({states,links:[]});}return user;}
 async function cloudState(uid,control){const lists=await Promise.all(collections.map(kind=>sdk.getDocsFromServer(collectionRef(uid,control,kind))));const result=emptyState();collections.forEach((kind,i)=>result[kind]=parseList(lists[i]));return result;}
@@ -55,11 +56,13 @@ async function mutate(affected,update,resetPermit=false){
  }finally{mutationBusy=false;}
 }
 export async function saveRows(kind,rows){
+ if(kind==='settlements')throw Error('Use a baixa de compromisso para registrar histórico.');
  if(!collections.includes(kind)||!rows.length||rows.length>440)throw Error('Operação fora do limite.');
  const control=currentControl();
  await mutate([control],async(value,tx,s)=>{
   const state=value.states[control];
-  for(const row of rows){if(!row.id||row.id.includes('/')||row.id.startsWith('link:'))throw Error('Registro inválido.');if(kind==='transactions'){validateTx(row,state);assertPotTransaction(row,state);}const i=state[kind].findIndex(x=>x.id===row.id);if(i<0)state[kind].push(row);else state[kind][i]=row;}
+  for(const row of rows){if(!row.id||row.id.includes('/')||row.id.startsWith('link:'))throw Error('Registro inválido.');if(kind==='transactions'){if(state.transactions.find(t=>t.id===row.id)?.settlementAnchor||(state.settlements||[]).some(e=>e.transactionId===row.id))throw Error('Este compromisso possui histórico. Use Baixar, Renegociar, Encerrar restante ou Histórico.');validateTx(row,state);assertPotTransaction(row,state);}const i=state[kind].findIndex(x=>x.id===row.id);if(i<0)state[kind].push(row);else state[kind][i]=row;}
+  for(const row of rows)if(kind==='accounts'&&state.settlements.some(e=>e.kind==='cash'&&e.date<row.openingDate&&state.transactions.some(t=>t.id===e.transactionId&&t.accountId===row.id)))throw Error('A abertura não pode ser posterior às baixas registradas.');
   const projected=projectLinks(state,value.links,control);validatePots(projected);
   for(const link of value.links.filter(l=>l.status!=='cancelled')){const account=state.accounts.find(a=>a.id===(link.fromControl===control?link.fromAccount:link.toAccount));if(account&&link.status==='posted'&&link.paidDate<account.openingDate)throw Error('A abertura não pode ser posterior às movimentações entre controles.');}
   if(tx)for(const row of rows){const {id,...data}=row;tx.set(rowRef(s.uid,control,kind,id),data);}
@@ -71,6 +74,23 @@ export async function saveLink(link){
   const i=value.links.findIndex(x=>x.id===link.id);if(i<0)value.links.push(link);else value.links[i]=link;
   for(const control of ['personal','business'])validatePots(projectLinks(value.states[control],value.links,control));
   if(tx){const {id,...data}=link;tx.set(sdk.doc(sdk.db,...root(s.uid,'links',id)),data);}
+ });
+}
+export async function settleDebt(transactionId,command){
+ const control=currentControl();await mutate([control],async(value,tx,s)=>{
+  const state=value.states[control],events=buildSettlements(state,transactionId,command);
+  const parent=state.transactions.find(t=>t.id===transactionId);
+  if(events.length&&!parent.settlementAnchor){parent.settlementAnchor=events[0].id;if(tx){const {id,...data}=parent;tx.set(rowRef(s.uid,control,'transactions',id),data);}}
+  state.settlements.push(...events);validatePots(projectLinks(state,value.links,control));
+  if(tx)for(const event of events){const {id,...data}=event;tx.set(rowRef(s.uid,control,'settlements',id),data);}
+ });
+}
+export async function reverseSettlement(eventId,operationId,reason){
+ const control=currentControl();await mutate([control],async(value,tx,s)=>{
+  const state=value.states[control],existing=state.settlements.find(e=>e.operationId===operationId);
+  if(existing){if(existing.kind==='reverse'&&existing.targetId===eventId&&existing.reason===reason.trim())return;throw Error('Operação já utilizada.');}
+  const event=buildReversal(state,eventId,operationId,reason);state.settlements.push(event);validatePots(projectLinks(state,value.links,control));
+  if(tx){const {id,...data}=event;tx.set(rowRef(s.uid,control,'settlements',id),data);}
  });
 }
 export async function changeReserve(potId,amountCents,mode){

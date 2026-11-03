@@ -1,4 +1,4 @@
-import {balances,emptyState,validDate,today} from './finance.js?v=controls-20261103';
+import {balances,cashRows,emptyState,validDate,today} from './finance.js?v=partial-20261103';
 export const controls={personal:'Pessoal',business:'Empresa'};
 export const purposes={prolabore:'Pró-labore líquido',profit:'Distribuição de lucros',contribution:'Aporte do proprietário',reimbursement:'Reembolso'};
 export const otherControl=id=>id==='personal'?'business':'personal';
@@ -27,7 +27,7 @@ export function validateLink(link,states){
   if(link.status==='posted'&&link.paidDate<account.openingDate)throw Error('A baixa deve ocorrer na data de abertura das contas ou depois.');
  }
 }
-export function potSpent(state,pot){const account=state.accounts.find(a=>a.id===pot.accountId);return state.transactions.filter(t=>t.potId===pot.id&&t.accountId===pot.accountId&&t.status==='posted'&&['expense','invoicePayment'].includes(t.kind)&&t.paidDate>=(account?.openingDate||'')).reduce((n,t)=>n+t.amountCents,0);}
+export function potSpent(state,pot){const account=state.accounts.find(a=>a.id===pot.accountId);return cashRows(state).filter(t=>t.potId===pot.id&&t.accountId===pot.accountId&&t.status==='posted'&&['expense','invoicePayment'].includes(t.kind)&&t.paidDate>=(account?.openingDate||'')).reduce((n,t)=>n+t.amountCents,0);}
 export const potBalance=(state,pot)=>pot.reservedCents-potSpent(state,pot);
 export function reserveSummary(state){
  const b=balances(state);const eligible=state.accounts.filter(a=>a.kind!=='investment');

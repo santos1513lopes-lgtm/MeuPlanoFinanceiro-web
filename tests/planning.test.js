@@ -34,19 +34,19 @@ export async function runPlanningTests(){
  await test('Consultas nao modificam registros',()=>{const s=fixture();s.transactions=[tx];const before=JSON.stringify(s);planningSummary(s,'2026-11',asOf);assert.equal(JSON.stringify(s),before);});
  await test('Busca de ajuda ignora acentos e maiusculas',()=>{assert.ok(searchHelp('CARTAO').some(t=>t.id==='cards'));assert.equal(normalizeHelp('  PREVISÃO '),'previsao');});
  await test('Busca de ajuda cobre saldo inicial e reinicio',()=>{assert.ok(searchHelp('saldo inicial').some(t=>t.id==='start'));assert.ok(searchHelp('reset').some(t=>t.id==='settings'));assert.equal(searchHelp('zzzznonexistent').length,0);});
- await test('Ajuda documenta recursos, limites e exemplo de 180',()=>{assert.equal(helpTopics.length,18);const text=helpTopics.flatMap(t=>t.steps).join(' ');assert.ok(text.includes('R$ 180'));assert.ok(text.includes('Não há desfazer'));assert.ok(text.toLowerCase().includes('não há restauração automática'));assert.ok(text.includes('senha'));});
+ await test('Ajuda documenta recursos, limites e exemplo de 180',()=>{assert.equal(helpTopics.length,19);const text=helpTopics.flatMap(t=>t.steps).join(' ');assert.ok(text.includes('R$ 180'));assert.ok(text.includes('Não há desfazer'));assert.ok(text.toLowerCase().includes('não há restauração automática'));assert.ok(text.includes('senha'));});
  const app=await fs.readFile(new URL('../js/app.js',import.meta.url),'utf8');
  const viewsLine=app.split('\n').find(line=>line.startsWith('const views='));
  const views=vm.runInNewContext('('+viewsLine.slice('const views='.length,-1)+')');
  await test('Todos os links da ajuda apontam para paginas existentes',()=>{for(const topic of helpTopics)assert.ok(views[topic.view]);assert.ok(views.help);});
  await test('Dashboard renderiza resumo de 180 e 12 meses',()=>{
   const s=fixture();s.transactions=[tx];const money=F.money;
-  const context={reserveSummary,Store:{currentControl:()=> 'personal'},controls:{personal:'Pessoal'},state:s,period:'2026-11',F:{...F,today:()=>asOf,forecast:state=>F.forecast(state,asOf)},planningSummary:(state,month)=>planningSummary(state,month,asOf),heading:()=>'',monthInput:()=>'',action:(text,act,id)=>'<button data-action="'+act+'" data-id="'+id+'">'+text+'</button>',metric:(title,value)=>title+money(value),badge:()=>'',e:x=>String(x),amt:money,date:x=>x,name:()=> 'Cartao',chart:()=>'',empty:()=>'',recentRows:()=>'',goalCard:()=>''};
+  const context={debtScope:'month',scopeToggle:()=>'',reserveSummary,Store:{currentControl:()=> 'personal'},controls:{personal:'Pessoal'},state:s,period:'2026-11',F:{...F,today:()=>asOf,forecast:state=>F.forecast(state,asOf)},planningSummary:(state,month)=>planningSummary(state,month,asOf),heading:()=>'',monthInput:()=>'',action:(text,act,id)=>'<button data-action="'+act+'" data-id="'+id+'">'+text+'</button>',metric:(title,value)=>title+money(value),badge:()=>'',e:x=>String(x),amt:money,date:x=>x,name:()=> 'Cartao',chart:()=>'',empty:()=>'',recentRows:()=>'',goalCard:()=>''};
   vm.createContext(context);vm.runInContext(app.slice(app.indexOf('function dashboard(){'),app.indexOf('function filters(){')),context);const html=context.dashboard();assert.ok(html.includes('Faturas em aberto no mês'+money(18000)));assert.ok(html.includes('Total a pagar no mês'+money(18000)));assert.equal((html.match(/data-action="planning-month"/g)||[]).length,12);assert.ok(html.includes('Fatura Cartao'));
  });
  await test('Acao de mes abre compromissos no periodo escolhido',async()=>{
   const actions=app.slice(app.indexOf('async function onAction('),app.indexOf('function doCalculation('));
-  let opened=null;const ctx={F:{validDate:F.validDate},go:target=>opened=target,notice:()=>{},errorText:error=>error.message};vm.createContext(ctx);vm.runInContext("let period='2026-11';\n"+actions,ctx);await ctx.onAction('planning-month','2026-12');assert.equal(opened,'future');assert.equal(vm.runInContext('period',ctx),'2026-12');opened=null;await ctx.onAction('planning-month','not-a-month');assert.equal(opened,null);
+  let opened=null;const ctx={debtScope:'all',F:{validDate:F.validDate},go:target=>opened=target,notice:()=>{},errorText:error=>error.message};vm.createContext(ctx);vm.runInContext("let period='2026-11';\n"+actions,ctx);await ctx.onAction('planning-month','2026-12');assert.equal(opened,'future');assert.equal(vm.runInContext('period',ctx),'2026-12');opened=null;await ctx.onAction('planning-month','not-a-month');assert.equal(opened,null);
  });
  return passed;
 }

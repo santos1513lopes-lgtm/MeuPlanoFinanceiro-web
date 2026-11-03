@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const rules=await fs.readFile(new URL('../firestore.rules',import.meta.url),'utf8');
+let passed=0;const test=(label,fn)=>{try{fn();passed++;}catch(e){throw Error(label+': '+e.message);}};
+test('Sanidade lexical: delimitadores e strings fechados',()=>{const stack=[];let quote=null,comment=false;for(let i=0;i<rules.length;i++){const ch=rules[i];if(comment){if(ch==='\n')comment=false;continue;}if(quote){if(ch==='\\'){i++;continue;}if(ch===quote)quote=null;else assert.notEqual(ch,'\n','String de regra quebrada entre linhas');continue;}if(ch==='/'&&rules[i+1]==='/'){comment=true;i++;continue;}if(ch==="'"||ch==='"'){quote=ch;continue;}if('({['.includes(ch))stack.push(ch);if(')}]'.includes(ch)){const expected={')':'(',']':'[','}':'{'}[ch];assert.equal(stack.pop(),expected);}}assert.equal(quote,null);assert.equal(stack.length,0);});
+test('Funções declaradas uma única vez',()=>{const names=[...rules.matchAll(/function\s+(\w+)\s*\(/g)].map(m=>m[1]);assert.equal(names.length,new Set(names).size);assert.ok(names.includes('validSettlement'));});
+test('Rota de controle única e assinatura de validação consistente',()=>{assert.equal(rules.split('match /finance_v3/{uid}/controls/{control}').length-1,1);assert.ok(rules.includes('validTransaction(uid,control,request.resource.data,id)'));assert.ok(!rules.includes('validTransaction(uid,control,request.resource.data))'));});
+test('Contrato separa criação imutável do histórico de edições comuns',()=>{assert.ok(rules.includes("allow create: if kind == 'settlements'"));assert.ok(rules.includes("allow create, update: if kind != 'settlements'"));assert.ok(rules.includes("resource.data.get('settlementAnchor','') == '' || request.resource.data == resource.data"));assert.ok(!rules.includes('allow read, write: if true'));});
+console.log(passed+' verificações estáticas das regras passaram (não substituem compilação/emulador).');

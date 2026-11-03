@@ -17,9 +17,10 @@ service cloud.firestore {
   function validCard(d) { return d.keys().hasAll(['name','closingDay','dueDay','limitCents']) && d.keys().hasOnly(['name','closingDay','dueDay','limitCents']) && named(d) && d.closingDay is int && d.closingDay >= 1 && d.closingDay <= 31 && d.dueDay is int && d.dueDay >= 1 && d.dueDay <= 31 && money(d.limitCents); }
   function validBudget(uid,control,d) { return d.keys().hasAll(['month','category','limitCents']) && d.keys().hasOnly(['month','category','limitCents']) && monthString(d.month) && category(uid,control,d.category) && money(d.limitCents) && d.limitCents > 0; }
   function validGoal(d) { return d.keys().hasAll(['name','targetCents','savedCents','deadline']) && d.keys().hasOnly(['name','targetCents','savedCents','deadline']) && named(d) && money(d.targetCents) && d.targetCents > 0 && money(d.savedCents) && dateString(d.deadline); }
-  function validTransaction(uid,control,d) {
+  function validTransaction(uid,control,d,id) {
    return d.keys().hasAll(['kind','description','amountCents','category','accountId','toAccountId','cardId','date','dueDate','competence','paidDate','status','groupId','installment','installments'])
-    && d.keys().hasOnly(['kind','description','amountCents','category','accountId','toAccountId','cardId','date','dueDate','competence','paidDate','status','groupId','installment','installments','potId'])
+    && d.keys().hasOnly(['kind','description','amountCents','category','accountId','toAccountId','cardId','date','dueDate','competence','paidDate','status','groupId','installment','installments','potId','settlementAnchor'])
+    && (d.get('settlementAnchor','') == '' || (d.settlementAnchor is string && d.settlementAnchor.size() <= 150 && getAfter(/databases/$(database)/documents/finance_v3/$(uid)/controls/$(control)/settlements/$(d.settlementAnchor)).data.transactionId == id))
     && d.kind in ['income','expense','card','invoicePayment','transfer','yield']
     && d.status in ['planned','posted','cancelled'] && d.description is string && d.description.size() > 0 && d.description.size() <= 200
     && money(d.amountCents) && d.amountCents > 0 && dateString(d.date) && dateString(d.dueDate) && monthString(d.competence)
@@ -59,15 +60,36 @@ service cloud.firestore {
     && ((d.status == 'posted' && dateString(d.paidDate)) || (d.status != 'posted' && (d.paidDate == '' || dateString(d.paidDate))))
     && account(uid,d.fromControl,d.fromAccount) && account(uid,d.toControl,d.toAccount);
   }
+
+  function validSettlement(uid,c,d) {
+   let parent = get(/databases/$(database)/documents/finance_v3/$(uid)/controls/$(c)/transactions/$(d.transactionId)).data;
+   let parentAfter = getAfter(/databases/$(database)/documents/finance_v3/$(uid)/controls/$(c)/transactions/$(d.transactionId)).data;
+   return d.keys().hasAll(['transactionId','kind','amountCents','date','dueDate','previousDueDate','reason','targetId','operationId','requestKey','sequence'])
+    && d.keys().hasOnly(['transactionId','kind','amountCents','date','dueDate','previousDueDate','reason','targetId','operationId','requestKey','sequence'])
+    && d.transactionId is string && d.transactionId.size() > 0 && d.transactionId.size() <= 100
+    && parentAfter.get('settlementAnchor','') != ''
+    && parent.status == 'planned' && parent.kind in ['income','expense','yield']
+    && d.kind in ['cash','close','reschedule','reverse'] && money(d.amountCents) && d.amountCents <= parent.amountCents && dateString(d.date)
+    && d.reason is string && d.reason.size() <= 200 && d.dueDate is string && d.previousDueDate is string && d.targetId is string
+    && d.operationId is string && d.operationId.matches('^[A-Za-z0-9-]{1,100}$') && d.requestKey is string && d.requestKey.size() <= 1500
+    && d.sequence is int && d.sequence >= 1 && d.sequence <= 1000000000
+    && ((d.kind == 'cash' && d.amountCents > 0 && d.targetId == '' && d.dueDate == '' && d.previousDueDate == '' && d.reason == '')
+     || (d.kind == 'close' && d.amountCents > 0 && d.reason.size() > 0 && d.targetId == '' && d.dueDate == '' && d.previousDueDate == '')
+     || (d.kind == 'reschedule' && d.amountCents == 0 && d.reason.size() > 0 && dateString(d.dueDate) && dateString(d.previousDueDate) && d.dueDate != d.previousDueDate && d.targetId == '')
+     || (d.kind == 'reverse' && d.amountCents == 0 && d.reason.size() > 0 && d.targetId.size() > 0 && d.targetId.size() <= 150 && d.dueDate == '' && d.previousDueDate == ''
+      && get(/databases/$(database)/documents/finance_v3/$(uid)/controls/$(c)/settlements/$(d.targetId)).data.transactionId == d.transactionId
+      && get(/databases/$(database)/documents/finance_v3/$(uid)/controls/$(c)/settlements/$(d.targetId)).data.kind != 'reverse'));
+  }
   match /finance_v3/{uid}/controls/{control} {
    allow read: if owner(uid) && isControl(control);
    allow create, update: if owner(uid) && isControl(control) && request.resource.data.keys().hasOnly(['revision']) && request.resource.data.revision is int && changed(uid,control);
    allow delete: if false;
    match /{kind}/{id} {
-    allow read: if owner(uid) && isControl(control) && kind in ['accounts','cards','categories','transactions','budgets','goals','pots'];
-    allow create, update: if owner(uid) && isControl(control) && changed(uid,control) &&
-     ((kind == 'accounts' && validAccount(request.resource.data)) || (kind == 'cards' && validCard(request.resource.data)) || (kind == 'categories' && request.resource.data.keys().hasOnly(['name']) && named(request.resource.data)) || (kind == 'transactions' && validTransaction(uid,control,request.resource.data)) || (kind == 'budgets' && validBudget(uid,control,request.resource.data)) || (kind == 'goals' && validGoal(request.resource.data)) || (kind == 'pots' && validPot(uid,control,request.resource.data)));
-    allow delete: if owner(uid) && isControl(control) && changed(uid,control) && kind in ['accounts','cards','categories','transactions','budgets','goals','pots'];
+    allow read: if owner(uid) && isControl(control) && kind in ['accounts','cards','categories','transactions','budgets','goals','pots','settlements'];
+    allow create: if kind == 'settlements' && owner(uid) && isControl(control) && changed(uid,control) && validSettlement(uid,control,request.resource.data);
+    allow create, update: if kind != 'settlements' && owner(uid) && isControl(control) && changed(uid,control) &&
+     ((kind == 'accounts' && validAccount(request.resource.data)) || (kind == 'cards' && validCard(request.resource.data)) || (kind == 'categories' && request.resource.data.keys().hasOnly(['name']) && named(request.resource.data)) || (kind == 'transactions' && (request.method != 'update' || resource.data.get('settlementAnchor','') == '' || request.resource.data == resource.data) && validTransaction(uid,control,request.resource.data,id)) || (kind == 'budgets' && validBudget(uid,control,request.resource.data)) || (kind == 'goals' && validGoal(request.resource.data)) || (kind == 'pots' && validPot(uid,control,request.resource.data)));
+    allow delete: if owner(uid) && isControl(control) && changed(uid,control) && kind in ['accounts','cards','categories','transactions','budgets','goals','pots','settlements'];
    }
   }
   match /finance_v3/{uid}/links/{id} {

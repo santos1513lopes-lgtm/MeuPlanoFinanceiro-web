@@ -6,7 +6,7 @@ Aplicativo: https://santos1513lopes-lgtm.github.io/MeuPlanoFinanceiro-web/
 
 ## Ativar esta versão no projeto existente
 
-A estrutura financeira passa de `finance_v2` para `finance_v3`. Os dois controles começam vazios, sem importar os dados antigos de teste. Login, senha e autorização permanecem. Publicar o site no GitHub não publica as regras do Firebase.
+Esta atualização mantém os controles Pessoal e Empresa em `finance_v3` e preserva seus registros. Acrescenta o histórico de baixas/acordos em `settlements`. Não exclua dados, contas ou usuários. Publicar o site no GitHub não publica as regras do Firebase.
 
 1. Abra **firestore.rules** na raiz deste repositório.
 2. Use **Raw/Bruto** ou o botão de copiar. Copie o código original, sem tradução automática do navegador.
@@ -15,12 +15,10 @@ A estrutura financeira passa de `finance_v2` para `finance_v3`. Os dois controle
 5. Substitua todo o código pelo conteúdo atual de `firestore.rules`.
 6. Clique em **Publicar** e aguarde a confirmação e propagação.
 7. Abra o aplicativo, pressione **Ctrl+F5** e entre com seu usuário existente.
-8. Selecione **Pessoal**, cadastre contas e saldos iniciais. Depois faça o mesmo em **Empresa**.
-9. Cadastre categorias em cada controle e teste contas a pagar, potes e repasses.
+8. Confira suas contas e registros nos controles já existentes. Não precisa cadastrá-los novamente.
+9. Teste os filtros e as baixas parciais com um compromisso de teste, seguindo a seção abaixo.
 
-Não use `allow read, write: if true`. Preserve `authorized_users`. Não precisa criar outro banco, novo usuário ou senha. Se aparecer `permission-denied`, confira projeto, banco e publicação das regras desta versão.
-
-Os dados antigos não são apagados fisicamente por esta atualização: deixam de ser usados e não recebem acesso por estas regras. Não é necessário exportá-los para começar vazio.
+Não use `allow read, write: if true`. Preserve `authorized_users` e `finance_v3`. Se aparecer `permission-denied`, confira o projeto, o banco e a publicação destas regras. Registros da antiga reestruturação `finance_v2` continuam fora do app; esta atualização não recria o banco nem importa esses testes antigos.
 
 ## Configurar o Firebase desde o início
 
@@ -78,11 +76,39 @@ Cadastre em **Contas** o saldo existente antes dos movimentos da data de abertur
 5. Informe descrição (ex.: Internet), categoria, conta, valor e primeiro vencimento.
 6. Mantenha **Previsto** até pagar. O valor se repete integralmente em cada ocorrência.
 7. Ao salvar, os vencimentos aparecem nos respectivos meses, na Visão geral, em Compromissos e na projeção.
-8. Ao pagar, use **Baixar** e informe a data efetiva. Cada ocorrência pode ser alterada, baixada ou cancelada individualmente.
+8. Ao pagar, use **Pagar** e informe a quantia e a data efetivas. Cada ocorrência admite baixas parciais e acordos próprios. Depois do primeiro registro de histórico, seus dados-base ficam protegidos.
 
 Não há criação infinita nem reconhecimento automático de contas fixas pelo histórico. Ao terminar o período cadastrado, crie novas ocorrências a partir do primeiro vencimento ainda não registrado. Os avisos aparecem dentro do app; não há notificação com o app fechado.
 
 O painel mostra receitas previstas, despesas e saídas entre controles pendentes, faturas abertas e total a pagar no mês. O total de hoje em diante inclui todos os compromissos conhecidos, mesmo além da tabela de 12 meses. Vencidos aparecem separados e entram no primeiro mês da projeção. Pagos e cancelados saem das pendências.
+
+## Pendências do mês, totais e baixas parciais
+
+O botão **Mês selecionado / Todos os períodos** funciona como uma chave: clique para ver somente vencimentos do mês, clique novamente para incluir todos os períodos. Está na Visão geral e nas áreas Contas a pagar / Contas a receber. Os totais e a lista usam o mesmo escopo; o saldo bancário real não muda ao alternar a chave. A projeção mensal continua identificada pelo mês e pelo horizonte de 12 meses.
+
+Em Contas a pagar / Contas a receber, escolha **Todas em aberto**, **Atrasadas** (antes de hoje), **Vencem hoje** ou **Futuras** (depois de hoje). Os cartões resumem o escopo antes do filtro e da busca; o total da lista filtrada é informado separadamente. Valores quitados ou encerrados não entram no aberto. Faturas entram pelo saldo restante, uma única vez.
+
+### Receber/pagar uma parte
+
+1. Escolha o controle e encontre uma receita/despesa prevista.
+2. Clique em **Receber** ou **Pagar**.
+3. Informe a quantia efetivamente movimentada e a data da baixa.
+4. Para a diferença, escolha manter em aberto, renegociar com novo vencimento e motivo, ou encerrar sem dinheiro com motivo.
+5. Salve e confira o histórico e o saldo restante. Para apenas renegociar/encerrar, informe zero na quantia efetiva.
+
+Exemplo: receber R$ 200 de R$ 250 acrescenta R$ 200 à conta e mantém R$ 50 a receber. Pagar R$ 400 de R$ 500 reduz a conta e o pote associado em R$ 400 e mantém R$ 100 a pagar. Uma segunda baixa pode quitar o restante; cada data/quantia permanece no histórico.
+
+Encerrar R$ 50 por desconto/abatimento/perdão/cancelamento registra essa diferença como encerrada, sem receita/despesa de caixa fictícia. Renegociar preserva o vencimento anterior no histórico e altera somente o prazo do restante. Reserva não consumida por encerramento continua no pote até você liberá-la. Orçamento considera o compromisso original menos a parcela encerrada, mantendo a competência original; renegociar caixa não muda automaticamente a competência orçamentária.
+
+### Histórico e correções
+
+Depois do primeiro registro de baixa/acordo, o compromisso mantém seu valor original, conta, categoria e vínculo ao pote protegidos. Use as ações específicas em vez de editar/cancelar o original. A tela mostra original, baixado, encerrado e restante. Registros integrais anteriores à atualização continuam válidos, sem criar uma segunda baixa.
+
+Em **Histórico**, **Desfazer registro** pede motivo e acrescenta uma correção, sem apagar o evento original. Isso corrige o efeito no aplicativo; não representa devolução automática de dinheiro no banco. Se houve devolução real, registre a movimentação bancária correspondente. Uma correção pode reabrir o restante e é recusada se tornar as reservas incompatíveis com o saldo.
+
+As novas baixas são para receitas/despesas/rendimentos comuns. Faturas mantêm seus próprios pagamentos parciais. Repasses entre os controles mantêm baixa integral vinculada. O CSV dos lançamentos inclui original, baixado, encerrado e restante; o backup JSON inclui o histórico completo.
+
+O app salva a baixa e eventual acordo juntos. O identificador da operação evita duplicar uma confirmação repetida; uma operação com saldo desatualizado exige nova conferência. As regras deixam eventos imutáveis e protegem os dados-base do compromisso após o primeiro evento. A limpeza em Configurações continua limitada ao controle selecionado e também remove seu histórico de baixas.
 
 ## Cartões e faturas
 
@@ -146,8 +172,8 @@ O app não executa Pix, não movimenta bancos, não calcula impostos/folha e nã
 
 Em **Configurações**, as ações afetam somente o controle selecionado:
 
-- **Limpar movimentações:** apaga lançamentos; zera abertura das contas, acumulado das metas e reservas dos potes; mantém cadastros e objetivos.
-- **Começar do zero:** apaga as sete coleções financeiras desse controle.
+- **Limpar movimentações:** apaga lançamentos e o histórico de baixas/acordos; zera abertura das contas, acumulado das metas e reservas dos potes; mantém cadastros e objetivos.
+- **Começar do zero:** apaga as oito coleções financeiras desse controle.
 
 Se houver repasses vinculados ativos, a limpeza é bloqueada. Primeiro cancele-os em Entre controles: o cancelamento ajusta conscientemente os dois lados. O histórico dos vínculos cancelados é mantido. O outro controle não é apagado.
 
@@ -162,7 +188,7 @@ finance_v3/{uid}/controls/business/{colecao}/{id}
 finance_v3/{uid}/links/{id}                         # repasse canônico
 ```
 
-Coleções: `accounts`, `cards`, `categories`, `transactions`, `budgets`, `goals`, `pots`.
+Coleções: `accounts`, `cards`, `categories`, `transactions`, `budgets`, `goals`, `pots`, `settlements`.
 Documentos de controle mantêm revisão para coordenar gravações concorrentes do app. Repasse grava o vínculo e revisões dos dois controles na mesma transação. As linhas de entrada/saída são derivadas em memória.
 
 As regras exigem autenticação, UID proprietário e autorização ativa. Referências de contas, categorias, cartões e potes são validadas no controle correspondente. Nenhuma autorização pode ser alterada pela interface.

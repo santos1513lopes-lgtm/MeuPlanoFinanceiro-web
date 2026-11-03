@@ -253,6 +253,17 @@ Esses passos são necessários: testes do motor financeiro e a demonstração n�
 
 Não coloque senhas, tokens ou credenciais administrativas em capturas ou arquivos de diagnóstico. A causa exata do erro anterior de cadastro público não foi confirmada; não foi realizado login de teste usando senha do proprietário.
 
+### Quando o botão Entrar parece não fazer nada
+
+A tela agora informa as etapas: **conferindo e-mail e senha**, **credenciais aceitas/verificando autorização** e **carregamento dos dados**. Campos vazios ou e-mail inválido geram mensagem própria. Falhas no carregamento do JavaScript aparecem na tela em vez de deixarem o botão sem resposta.
+
+A verificação inicial de autorização tem limite de espera de 15 segundos. O carregamento dos dados e a preparação da conexão têm limite de 20 segundos. Se o e-mail e a senha forem aceitos, mas o Firestore não responder, a mensagem informa essa etapa; isso não significa automaticamente senha incorreta.
+
+A confirmação de login agora abre o fluxo de entrada explicitamente, sem depender apenas da notificação de mudança de sessão. A aprovação em `authorized_users` continua obrigatória; nenhuma checagem foi removida.
+
+Após uma atualização, aguarde a publicação do GitHub Pages e use **Ctrl+F5**. Informe ao administrador o texto exato exibido, sem compartilhar a senha. A causa da falha real relatada ainda depende dessa observação; os testes de manutenção usam respostas simuladas.
+
+
 ## Primeiro uso real
 
 1. Cadastre contas e seus saldos de abertura. O saldo deve ser o valor antes dos movimentos da data inicial. Contas com tipo Investimento ficam separadas do saldo disponível; Poupança/reserva integra o disponível.

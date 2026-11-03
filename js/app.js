@@ -1,8 +1,9 @@
 import {resetModes,planReset} from './reset.js';
 import * as F from './finance.js';
-import * as Store from './storage.js';
+import * as Store from './storage.js?v=login-feedback-20261102';
 const $=id=>document.getElementById(id), e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=F.emptyState(),ready=false,view='dashboard',editorKind='',editing=null,period=F.today().slice(0,7),query='',typeFilter='all',statusFilter='all';
+let manualLoginPending=false,entrySequence=0;
 const views={dashboard:['◫','Visão geral','Seu dinheiro, com clareza.'],transactions:['⇄','Lançamentos','Receitas, despesas e movimentações em um só lugar.'],future:['◷','Compromissos','Organize o que você ainda tem a pagar e receber.'],accounts:['▤','Contas','Seus saldos de abertura e o dinheiro em cada conta.'],cards:['▱','Cartões e faturas','Compras, parcelas e pagamentos sem duplicar despesas.'],budgets:['◉','Orçamento','Dê um destino ao seu dinheiro antes de gastar.'],goals:['⚑','Metas','Um plano para cada conquista.'],investments:['↗','Investimentos','Acompanhe suas reservas, aportes e rendimentos.'],calculators:['∑','Calculadoras','Experimente possibilidades antes de decidir.'],categories:['≡','Categorias','Organize seus lançamentos do seu jeito.'],reports:['▧','Relatórios','Consulte, imprima e exporte seus registros.'],settings:['⚙','Configurações','Reinicie seu controle financeiro com segurança.']};
 const accountKinds={checking:'Conta corrente',cash:'Carteira',saving:'Poupança / reserva',investment:'Investimento'};
 const txKinds={income:'Receita',expense:'Despesa',card:'Compra no cartão',invoicePayment:'Pagamento de fatura',transfer:'Transferência',yield:'Rendimento'};
@@ -15,7 +16,12 @@ const action=(text,act,id='',cls='')=>'<button class="'+cls+'" data-action="'+ac
 const metric=(title,value,note,icon='↗',dark=false)=>'<div class="metric '+(dark?'dark':'')+'"><div class="metric-top"><span class="metric-title">'+title+'</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+F.money(value)+'</div><div class="metric-note">'+note+'</div></div>';
 const empty=(title,note='Cadastre seu primeiro registro para começar.')=>'<div class="empty"><span style="font-size:28px">◌</span><strong>'+title+'</strong><p>'+note+'</p></div>';
 function notice(text,success=false){$('status-message').textContent=text;$('status-message').classList.toggle('success',success);$('status-message').hidden=!text;}
-function errorText(err){if(err?.code==='app/access-not-approved')return 'Acesso não autorizado. Peça ao administrador para liberar seu UID em authorized_users no Firebase.';if(err?.code==='auth/user-disabled')return 'Seu usuário foi desativado. Entre em contato com o administrador.';if(err?.code==='auth/user-not-found'||err?.code==='auth/wrong-password')return 'E-mail ou senha incorretos. O cadastro é feito pelo administrador.';if(err?.code==='auth/invalid-api-key'||err?.code==='auth/api-key-not-valid.-please-pass-a-valid-api-key.')return 'A configuração do Firebase está inválida. Informe o administrador.';if(err?.code==='auth/operation-not-allowed')return 'O login por e-mail e senha precisa estar ativado no Firebase Authentication.';if(err?.code==='auth/network-request-failed')return 'Falha de conexão. Confira a internet e tente novamente.';if(err?.code==='auth/too-many-requests')return 'Muitas tentativas de login. Aguarde antes de tentar novamente.';if(err?.code==='permission-denied')return 'O Firebase recusou o acesso. Publique as regras firestore.rules desta versão e tente Atualizar.';if(err?.code==='auth/invalid-credential')return 'E-mail ou senha incorretos.';if(err?.code==='auth/email-already-in-use')return 'Este e-mail já possui cadastro.';if(err?.code==='auth/weak-password')return 'Use uma senha com pelo menos seis caracteres.';if(err?.code==='auth/unauthorized-domain')return 'Autorize o domínio do GitHub Pages no Firebase Authentication.';return err?.message||'Não foi possível concluir a operação.';}
+function loginDeadline(promise,milliseconds,code){
+ let timer;
+ const waiting=new Promise((resolve,reject)=>{timer=setTimeout(()=>{const error=new Error(code);error.code=code;reject(error);},milliseconds);});
+ return Promise.race([promise,waiting]).finally(()=>clearTimeout(timer));
+}
+function errorText(err){if(err?.code==='app/access-timeout')return 'O e-mail e a senha foram aceitos, mas o Firestore não respondeu à verificação de acesso. Confira a conexão, as regras publicadas e authorized_users/UID com enabled=true; depois tente novamente.';if(err?.code==='app/data-timeout')return 'O login foi aceito, mas os dados do Firestore demoraram para carregar. Confira a conexão e clique em Atualizar.';if(err?.code==='app/connection-timeout')return 'A conexão inicial com o Firebase demorou demais. Confira sua internet e recarregue com Ctrl+F5. A demonstração continua disponível.';if(err?.code==='app/access-not-approved')return 'Acesso não autorizado. Peça ao administrador para liberar seu UID em authorized_users no Firebase.';if(err?.code==='auth/user-disabled')return 'Seu usuário foi desativado. Entre em contato com o administrador.';if(err?.code==='auth/user-not-found'||err?.code==='auth/wrong-password')return 'E-mail ou senha incorretos. O cadastro é feito pelo administrador.';if(err?.code==='auth/invalid-api-key'||err?.code==='auth/api-key-not-valid.-please-pass-a-valid-api-key.')return 'A configuração do Firebase está inválida. Informe o administrador.';if(err?.code==='auth/operation-not-allowed')return 'O login por e-mail e senha precisa estar ativado no Firebase Authentication.';if(err?.code==='auth/network-request-failed')return 'Falha de conexão. Confira a internet e tente novamente.';if(err?.code==='auth/too-many-requests')return 'Muitas tentativas de login. Aguarde antes de tentar novamente.';if(err?.code==='permission-denied')return 'O Firebase recusou o acesso. Publique as regras firestore.rules desta versão e tente Atualizar.';if(err?.code==='auth/invalid-credential')return 'E-mail ou senha incorretos.';if(err?.code==='auth/email-already-in-use')return 'Este e-mail já possui cadastro.';if(err?.code==='auth/weak-password')return 'Use uma senha com pelo menos seis caracteres.';if(err?.code==='auth/unauthorized-domain')return 'Autorize o domínio do GitHub Pages no Firebase Authentication.';return err?.message||'Não foi possível concluir a operação.';}
 function drawNav(){ $('nav-main').innerHTML=Object.entries(views).map(([key,v])=>'<button data-view="'+key+'" class="'+(view===key?'active':'')+'" '+(view===key?'aria-current="page"':'')+'><span class="nav-icon">'+v[0]+'</span>'+v[1]+'</button>').join('');$('breadcrumb').textContent=views[view][1].toLocaleUpperCase('pt-BR');}
 function heading(extra=''){return '<div class="page-heading"><div><h1>'+views[view][1]+'</h1><p>'+views[view][2]+'</p></div><div class="heading-actions">'+extra+'</div></div>';}
 const monthInput=()=>'<input aria-label="Mês de referência" class="period-select" id="period" type="month" value="'+period+'">';
@@ -50,7 +56,7 @@ function openEditor(kind,id='',preset={}){if(!ready){notice('Carregue os dados a
  if(kind==='transactions')fields=select('kind','Tipo de lançamento',Object.entries(txKinds),t.kind||'expense')+input('description','Descrição',t.description||'','text','required maxlength="200"')+input('amount','Valor '+(!id?'total ':'')+'(R$)',t.amountCents?(t.amountCents/100).toFixed(2).replace('.',','):'','text','required inputmode="decimal"')+select('category','Categoria',options('categories'),t.category)+select('accountId','Conta de origem / recebimento',options('accounts'),t.accountId)+select('toAccountId','Conta de destino',options('accounts'),t.toAccountId)+select('cardId','Cartão',options('cards'),t.cardId)+input('date','Data do registro / compra',t.date||F.today(),'date','required')+input('dueDate','Vencimento',t.dueDate||F.today(),'date','required')+input('competence','Competência / mês da fatura',t.competence||(t.kind==='card'?'':period),'month','', 'No cartão, deixe vazio para calcular automaticamente.')+select('status','Situação',[['planned','Previsto'],['posted','Pago / Recebido / Confirmado'],['cancelled','Cancelado']],t.status||'planned')+input('paidDate','Data efetiva do pagamento / recebimento',t.paidDate||F.today(),'date','max="'+F.today()+'"')+(!id?input('installments','Parcelas no cartão (divide o total)','1','number','required min="1" max="120"')+input('repetitions','Ocorrências mensais (repete o valor)','1','number','required min="1" max="120"'):'')+'<p class="form-info full">'+(id?'A edição altera somente esta ocorrência. Para desfazer uma baixa, escolha Previsto.':'Recorrências incluem a primeira ocorrência. Crie contas recorrentes como Previsto e baixe cada uma depois.')+' Compra no cartão forma a fatura; registre o pagamento como Pagamento de fatura, sem criar outra despesa.</p>';
  $('editor-fields').innerHTML=fields;$('editor-error').textContent='';$('editor').showModal();if(kind==='transactions')syncTxFields();}
 function syncTxFields(){const form=$('editor-form'),k=form.elements.kind.value;const show=(field,visible)=>{const el=form.elements[field];if(el)el.closest('label').hidden=!visible;};show('category',['income','expense','card','yield'].includes(k));show('accountId',k!=='card');show('toAccountId',k==='transfer');show('cardId',['card','invoicePayment'].includes(k));show('paidDate',k!=='card'&&form.elements.status.value==='posted');show('installments',k==='card');show('repetitions',!['card','invoicePayment','transfer'].includes(k));show('dueDate',!['card','invoicePayment'].includes(k));}
-async function reload(){ready=false;$('new-transaction').disabled=true;try{const loaded=await Store.readState();state=loaded;ready=true;render();notice('');}catch(err){render();notice(errorText(err));}finally{$('new-transaction').disabled=!ready;}}
+async function reload(){ready=false;$('new-transaction').disabled=true;render();try{const loaded=await loginDeadline(Store.readState(),20000,'app/data-timeout');state=loaded;ready=true;render();notice('');}catch(err){render();notice(errorText(err));}finally{$('new-transaction').disabled=!ready;}}
 async function saveEditor(ev){ev.preventDefault();const form=$('editor-form');if(!form.reportValidity())return;const f=Object.fromEntries(new FormData(form));const id=editing||crypto.randomUUID();let rows=[];const existing=state[editorKind].find(x=>x.id===id);$('save-editor').disabled=true;$('editor-error').textContent='';try{
  if(editorKind==='accounts'){if(!F.validDate(f.openingDate)||f.openingDate>F.today())throw Error('A data de abertura deve ser válida e não pode estar no futuro.');rows=[{id,name:f.name.trim(),kind:f.kind,openingCents:F.cents(f.opening,true),openingDate:f.openingDate}];}
  if(editorKind==='cards'){const closingDay=Number(f.closingDay),dueDay=Number(f.dueDay);if(![closingDay,dueDay].every(n=>Number.isInteger(n)&&n>=1&&n<=31))throw Error('Dias entre 1 e 31.');rows=[{id,name:f.name.trim(),limitCents:F.cents(f.limit),closingDay,dueDay}];}
@@ -85,8 +91,11 @@ async function onAction(act,id){try{
  }catch(err){notice(errorText(err));}}
 function doCalculation(form){const f=Object.fromEntries(new FormData(form)),kind=form.dataset.calc,out=$(kind+'-result');try{if(kind==='investment'){const initial=F.cents(f.initial),contribution=F.cents(f.contribution),rows=F.investmentSimulation({initial,contribution,rate:Number(f.rate),period:f.period,months:Number(f.months),beginning:f.timing==='beginning'}),last=rows.at(-1),target=f.target?F.cents(f.target):0,hit=target?rows.find(r=>r.balance>=target):null;out.innerHTML='<span class="muted">Saldo estimado ao final</span><div class="big">'+F.money(last.balance)+'</div><div class="calc-breakdown"><span>Capital aplicado<strong>'+F.money(last.invested)+'</strong></span><span>Rendimento estimado<strong>'+F.money(last.yield)+'</strong></span></div>'+(target?'<p style="font-size:12px">'+(initial>=target?'Meta já alcançada no valor inicial.':hit?'Meta alcançada no mês '+hit.month+'.':'Meta não alcançada nesse prazo.')+'</p>':'');}else if(kind==='purchase'){const result=F.purchaseSimulation(F.cents(f.cash),F.cents(f.down),Number(f.count),Number(f.rate));out.innerHTML='<div class="big">'+f.count+' × '+F.money(result.payment)+'</div><div class="calc-breakdown"><span>Total com entrada<strong>'+F.money(result.total)+'</strong></span><span>Juros estimados<strong>'+F.money(result.interest)+'</strong></span></div>'+(result.lastPayment!==result.payment?'<p style="font-size:11px">Última parcela ajustada: '+F.money(result.lastPayment)+'</p>':'');}else out.textContent=F.calculate(f.expression).toLocaleString('pt-BR',{maximumFractionDigits:10});}catch(err){out.textContent=errorText(err);}}
 async function enter(user){
+ const sequence=++entrySequence;
  try{
-  await Store.assertAccess();
+  if(!Store.isDemo())$('auth-message').textContent='E-mail e senha aceitos. Verificando sua autorização no Firestore…';
+  await loginDeadline(Store.assertAccess(),15000,'app/access-timeout');
+  if(sequence!==entrySequence)return;
   $('login-screen').hidden=true;$('app-shell').hidden=false;
   $('user-label').textContent=user.email||'Minha conta';
   $('mode-label').textContent=Store.isDemo()?'Demonstração local':'Conta sincronizada';
@@ -94,6 +103,7 @@ async function enter(user){
   $('password').value='';
   await reload();
  }catch(err){
+  if(sequence!==entrySequence)return;
   ready=false;state=F.emptyState();
   try{await Store.logout();}catch(signOutError){}
   $('app-shell').hidden=true;$('login-screen').hidden=false;
@@ -106,14 +116,42 @@ $('menu-button').onclick=()=>document.querySelector('.sidebar').classList.toggle
 $('logout').onclick=async()=>{try{await Store.logout();ready=false;state=F.emptyState();$('app-shell').hidden=true;$('login-screen').hidden=false;}catch(err){notice(errorText(err));}};
 $('close-editor').onclick=$('cancel-editor').onclick=()=>$('editor').close();$('editor-form').onsubmit=saveEditor;
 $('editor-form').addEventListener('change',ev=>{if(editorKind==='transactions'){if(ev.target.name==='kind'){const f=$('editor-form');if(['card','invoicePayment'].includes(ev.target.value))f.elements.status.value='posted';if(ev.target.value==='card')f.elements.competence.value='';if(ev.target.value!=='card'&&f.elements.installments)f.elements.installments.value='1';if(['card','invoicePayment','transfer'].includes(ev.target.value)&&f.elements.repetitions)f.elements.repetitions.value='1';}syncTxFields();}});
-$('login-form').onsubmit=async ev=>{ev.preventDefault();$('login-submit').disabled=true;try{await Store.login($('email').value.trim(),$('password').value);}catch(err){$('auth-message').textContent=errorText(err);}finally{$('login-submit').disabled=false;}};
+$('login-form').noValidate=true;
+$('login-form').onsubmit=async ev=>{
+ ev.preventDefault();
+ if(manualLoginPending)return;
+ const email=$('email').value.trim(),password=$('password').value;
+ if(!email||!$('email').validity.valid){$('auth-message').textContent='Informe um e-mail válido para entrar.';return;}
+ if(!password){$('auth-message').textContent='Informe sua senha para entrar.';return;}
+ manualLoginPending=true;
+ $('login-submit').disabled=true;$('login-submit').textContent='Entrando…';
+ $('auth-message').textContent='Conferindo e-mail e senha no Firebase…';
+ try{
+  const user=await Store.login(email,password);
+  await enter(user);
+ }catch(err){$('auth-message').textContent=errorText(err);}
+ finally{
+  manualLoginPending=false;$('login-submit').disabled=false;$('login-submit').textContent='Entrar na minha conta →';
+ }
+};
 $('reset-password').onclick=async()=>{try{await Store.resetPassword($('email').value.trim());$('auth-message').textContent='Solicitação enviada. Se houver cadastro, confira seu e-mail.';}catch(err){$('auth-message').textContent=errorText(err);}};
 $('demo-button').onclick=async()=>{try{await enter(Store.startDemo());}catch(err){$('auth-message').textContent=errorText(err);}};
 document.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;if(b.dataset.view)return go(b.dataset.view);if(b.dataset.action)onAction(b.dataset.action,b.dataset.id);});
 $('content').addEventListener('change',ev=>{if(ev.target.id==='period'){period=ev.target.value||F.today().slice(0,7);render();}if(ev.target.id==='filter-type'){typeFilter=ev.target.value;render();}if(ev.target.id==='filter-status'){statusFilter=ev.target.value;render();}});
 $('content').addEventListener('input',ev=>{if(ev.target.id!=='search')return;query=ev.target.value;const pos=ev.target.selectionStart;render();$('search').focus();$('search').setSelectionRange(pos,pos);});
 $('content').addEventListener('submit',ev=>{if(ev.target.dataset.calc){ev.preventDefault();doCalculation(ev.target);}});
-Store.connect(user=>{if(user)enter(user);else if(!Store.isDemo()){$('app-shell').hidden=true;$('login-screen').hidden=false;}}).then(()=>$('auth-message').textContent='Conexão pronta. Entre com o cadastro criado pelo administrador.').catch(err=>$('auth-message').textContent='Não foi possível conectar ao Firebase. Confira a internet; a demonstração continua disponível.');
+$('login-submit').disabled=true;
+loginDeadline(Store.connect(user=>{
+ if(manualLoginPending)return;
+ if(user)enter(user);
+ else if(!Store.isDemo()){entrySequence++;$('app-shell').hidden=true;$('login-screen').hidden=false;}
+}),20000,'app/connection-timeout').then(()=>{
+ $('login-submit').disabled=false;
+ if($('login-screen').hidden===false&&!manualLoginPending&&!Store.currentUser())$('auth-message').textContent='Conexão pronta. Entre com o cadastro criado pelo administrador.';
+}).catch(err=>{
+ $('login-submit').disabled=false;
+ $('auth-message').textContent='Não foi possível preparar o login. '+errorText(err)+' Recarregue com Ctrl+F5 se necessário.';
+});
 
 if(new URLSearchParams(location.search).get('demo')==='1')enter(Store.startDemo());
 

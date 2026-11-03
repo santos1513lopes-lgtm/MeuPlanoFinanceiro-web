@@ -8,7 +8,7 @@ export async function connect(onUser){
  const [app,auth,fire]=await Promise.all([import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'),import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js')]);
  sdk={...auth,...fire};sdk.auth=auth.getAuth(app.initializeApp(firebaseConfig));sdk.db=fire.getFirestore();auth.onAuthStateChanged(sdk.auth,u=>{if(demo)return;user=u;onUser(u);});return sdk;
 }
-export async function login(email,password){if(!sdk)throw Error('A conexao com o Firebase ainda nao esta pronta. Confira sua internet.');demo=false;await sdk.signInWithEmailAndPassword(sdk.auth,email,password);}
+export async function login(email,password){if(!sdk)throw Error('A conexão com o Firebase ainda não está pronta. Aguarde a mensagem de conexão ou recarregue a página.');demo=false;const credential=await sdk.signInWithEmailAndPassword(sdk.auth,email,password);user=credential.user;return credential.user;}
 export async function assertAccess(){
  if(demo)return;
  if(!sdk||!user){const error=new Error('Entre com uma conta criada pelo administrador.');error.code='app/sign-in-required';throw error;}

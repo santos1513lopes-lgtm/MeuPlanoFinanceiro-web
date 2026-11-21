@@ -205,3 +205,7 @@ Com Node.js, execute `npm test`, ou os comandos Node individuais definidos em `p
 - Firebase, regras: https://firebase.google.com/docs/firestore/security/rules-conditions
 
 Ferramenta de organização financeira; não substitui escrituração contábil e apuração fiscal.
+
+## Ordenar lançamentos
+
+Na aba Lançamentos, clique no título **Vencimento / baixa**, **Descrição / categoria** ou **Valor original / restante**. O primeiro clique em outra coluna ordena de forma crescente; clicar novamente alterna para decrescente. **↑** indica crescente, **↓** decrescente e **↕** uma coluna disponível para ordenar. Datas usam o vencimento atual (incluindo renegociações); valores usam o valor original em centavos. A escolha permanece ao mudar filtros, atualizar os dados e navegar durante a sessão, e também se aplica à tabela de Relatórios e ao seu CSV. A ordenação não modifica os registros financeiros.

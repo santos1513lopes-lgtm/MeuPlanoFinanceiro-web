@@ -84,3 +84,5 @@ body[data-control="business"] .control-eyebrow{color:#406c92}
 @media(max-width:1150px){.topbar{flex-wrap:wrap;gap:12px}.topbar .control-picker{margin-left:auto}.topbar .top-actions{flex-wrap:wrap}.header-account{display:none}}
 @media(max-width:700px){.topbar .control-picker{min-width:125px}.topbar .top-actions{width:100%;justify-content:flex-end}.control-reserves{align-items:flex-start;flex-direction:column}}
 @media print{.control-picker{display:none}.control-eyebrow{color:inherit}}
+
+.transaction-sort-button{background:transparent;color:inherit;display:inline-flex;align-items:center;gap:8px;padding:6px 0;text-align:inherit;font:inherit;font-weight:700}.transaction-sort-button span{font-size:16px}.transaction-sort-button:hover{color:var(--teal)}th[aria-sort="ascending"] .transaction-sort-button,th[aria-sort="descending"] .transaction-sort-button{color:var(--teal)}
